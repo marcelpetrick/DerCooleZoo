@@ -26,7 +26,8 @@ and validates the container.
 Linux CI runs Firefox with a real X display because its native headless backend
 cannot create WebGL on the GitHub-hosted runner. The same local pipeline enables
 Mesa software rendering and starts Xvfb when `CI` is set and `DISPLAY` is absent.
-Playwright's `--with-deps` installation supplies Xvfb. To reproduce that path:
+Playwright's `--with-deps` installation supplies Xvfb. Browser tests use two
+workers so software WebGL remains responsive on both local and CI CPUs. To reproduce that path:
 
 ```sh
 env -u DISPLAY CI=1 ./localPipeline.sh
@@ -67,7 +68,10 @@ checks. Do not claim remote success until the actual Actions run is complete.
 
 ## GitHub Actions
 
-[Pipeline](../.github/workflows/pipeline.yml) has three jobs:
+[Pipeline](../.github/workflows/pipeline.yml) pins its jobs to Ubuntu 24.04,
+the supported runner used to verify Firefox/Mesa software WebGL. This avoids the
+rolling `ubuntu-latest` migration changing the graphics environment between
+releases. It has three jobs:
 
 1. **Local pipeline:** installs locked dependencies and both browser engines,
    runs `./localPipeline.sh`, uploads verification reports even on failure, and
@@ -111,3 +115,16 @@ browser verification when `CAPTURE_SCREENSHOT=1` is set. Run
 `npm run build && CAPTURE_SCREENSHOT=1 npm run e2e -- --project=chromium`
 to refresh it after meaningful visual changes; do not replace
 it with an illustrative mockup.
+
+## Published-site smoke test
+
+After deployment, verify the exact released version in a fresh Chromium profile:
+
+```sh
+node scripts/check-site.mjs https://marcelpetrick.github.io/DerCooleZoo/
+```
+
+The script uses the installed Playwright Chromium browser, starts the real WebGL
+zoo, checks the package version, help, language switching, visitor arrival, and
+save/reopen, and fails on page errors. An optional second argument overrides the
+expected version. It closes its temporary browser even when a check fails.

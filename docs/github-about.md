@@ -1,7 +1,8 @@
-# GitHub About proposal
+# GitHub About
 
-Current description: “Zoo-Manager für kleine Kinder”. Current topics: none.
-Prepared using the `githubAbout` skill. Public metadata has not been changed.
+The `githubAbout` completion review checked the live repository description and
+all ten topics against the implemented game. The description and topics below
+already match the public repository; no metadata change was needed.
 
 ## Recommended description
 
@@ -33,4 +34,4 @@ with one animal and zero coins, then models transported food and family visitors
 regression in `tests/app.test.ts`. Age eight is the intended audience specified in
 the vision, not a claim of completed child usability testing. `vite.config.ts`
 enforces the 95% coverage gate, and `playwright.config.ts` targets both browsers.
-`LICENSE` supplies GPLv3. The default UI is English; German remains deferred.
+`LICENSE` supplies GPLv3. English and German support live switching in `src/app.ts` and paired locale files.

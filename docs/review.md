@@ -1,35 +1,29 @@
-# Release review
+# Completion review
 
-Base: main @ af2515e Head: af2515e
-Files changed against integration branch: 0 +0 / -0 lines
+The required `reviewBranch` skill resolved `main` as the integration branch at
+`234f6de`. The formal three-dot branch diff was empty because work happens directly
+on `main`. A supplemental review examined the pending implementation, call sites,
+malformed-save paths, movement, care, and resource lifetimes.
 
-## reviewBranch result
+Two confirmed findings were fixed and regression-tested:
 
-The work was explicitly performed directly on main. The resolved integration
-branch is therefore the current main commit and its three-dot diff is empty.
-The `reviewBranch` skill has no branch delta to review.
+- A cycle of four guests could remain blocked forever. Movement now rotates valid
+  occupied guest cycles atomically, with passing lanes in the renderer. Expired
+  visits and closing interrupt old tour routes so guests head to the exit.
+- Gardeners cleared purchased decorative trees. Automatic gardening now clears
+  weeds, stones and stumps; tree removal remains an explicit keeper action.
 
-## Supplementary first-release self-review
+Further functional review fixed moving-animal selection, stale ticket feedback,
+misleading wage labels, inaccessible starter trough placement (including old-save
+migration), decorative-only feeders/troughs, and missing tutorial credit when an animal ate
+from its feeder. Real stock is consumed by animals
+and replenished through physical keeper delivery; empty facilities render empty.
 
-The implementation was also reviewed directly, following the value flow from
-UI action to command, route, delivery, inventory, visitor response and save.
-Confirmed issues fixed with regression tests include inaccessible rock/stump
-clearing targets, guests crossing fences, stale queued guest routes, family
-admission exceeding the visitor cap, off-target care, invalid payments, carers
-skipping water when food is empty, hidden owned starter species, fence
-orientation, resize handling, and unavailable storage recovery.
+The reviewed findings are resolved. Automated tests cover crowded traffic and save
+reopening, populated-zoo closure, feeder/water consumption, physical refill
+transport, and actual browser interaction. Actual child usability testing remains
+unverified.
 
-A second pass found a mismatch between employee hiring and save limits, stale
-inspector/unlock state after simulation changes, and a zero-coin trapped-visitor
-recovery issue. The release fixes cap workers, refresh changed inspector/catalog
-state and provide free fence removal. Tests cover these paths.
-
-The full vision's deferred polish is recorded in `vision-status.md`, including
-German, richer story/event animation, habitat detail and real child playtesting.
-Those are explicit MVP limits, not claims of completed functionality.
-
-## Verdict
-
-The English MVP is suitable for first playtesting once the complete pipeline and
-remote deployment gates pass. It should not be advertised as the full polished
-vision or as having been usability-tested with children.
+The subsequent `githubAbout` review confirmed the public description and ten
+topics already match the repository. Evidence and alternatives are recorded in
+[github-about.md](github-about.md).

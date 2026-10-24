@@ -10,8 +10,8 @@ Complete the version-one product described in [Vision(1).md](<Vision(1).md>),
 including German/English live switching and the remaining simulation and visual
 feedback. The latest instructions supersede the previous English-only MVP scope.
 Make the zoo cute, preserve existing saves, work on main, and update this plan in
-every commit. Three subagents own localization, simulation, and renderer polish;
-the primary agent owns integration, browser acceptance, documentation and release.
+every commit. Three subagents completed localization, simulation, and renderer polish;
+the primary agent integrated them and owns browser acceptance and release.
 
 ## Active completion work
 
@@ -34,14 +34,21 @@ the primary agent owns integration, browser acceptance, documentation and releas
 - [x] Refresh the real UI screenshot and requirement traceability.
 - [x] Run reviewBranch, address findings, then run githubAbout.
 - [x] Run full pipeline including real Docker smoke verification.
-- [ ] Commit with version bump, push, inspect actual Actions/Pages/GHCR results.
-- [ ] Leave a clean working tree and report child playtesting as unverified.
+- [x] Commit with version bump, push, inspect actual Actions/Pages/GHCR results.
+- [x] Leave a clean working tree and report child playtesting as unverified.
 
 Local verification for the feature release: 129 tests, 12 browser scenarios across
 Firefox/Chromium, 99.56% statements / 97.99% branches / 99.07% functions / 99.78%
 lines, production build and real Docker smoke check all passed. Two browser workers
 keep software WebGL responsive instead of oversubscribing local/CI CPUs. Review
-findings are resolved; metadata matches GitHub. Remote publication is the next gate.
+findings are resolved; metadata matches GitHub. Feature release `0.4.0` was committed as `ba519c5` and pushed. Its actual
+[Actions run](https://github.com/marcelpetrick/DerCooleZoo/actions/runs/40132364867)
+passed all three jobs (verification, Pages, GHCR). Patch `0.4.1` records the
+completed audit, refreshed screenshot and reusable deployed-site smoke script; its
+full local pipeline also passed, including a real browser session against the
+Docker-served application. The final patch workflow is inspected after pushing.
+Actual child usability/playtesting remains unverified; automated scenarios do not
+substitute for participants.
 
 ## Execution checklist
 
@@ -59,8 +66,8 @@ findings are resolved; metadata matches GitHub. Remote publication is the next g
 - [x] Polish walking animations and make the player keeper unmistakable.
 - [x] Slow early visitor flow and earnings; add more rough, uncleared land.
 - [x] Enforce collision space for people and animals, with compatible saves.
-- [ ] Complete Docker, Pages and GHCR release verification.
-- [ ] Verify all remote checks, final pipeline, pushed commits and clean tree.
+- [x] Complete Docker, Pages and GHCR release verification.
+- [x] Verify all remote checks, final pipeline, pushed commits and clean tree.
 
 ## Delivery sequence
 
