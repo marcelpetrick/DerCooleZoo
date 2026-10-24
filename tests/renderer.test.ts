@@ -8,6 +8,7 @@ import {
   PointerEventTypes,
   PointerInfo,
 } from "@babylonjs/core/Events/pointerEvents.js";
+import { Matrix, Vector3 } from "@babylonjs/core/Maths/math.vector.js";
 import { PickingInfo } from "@babylonjs/core/Collisions/pickingInfo.js";
 import { buildings, species, terrains, roles } from "../src/catalog";
 import {
@@ -167,6 +168,32 @@ describe("original isometric procedural zoo", () => {
     );
     expect(select).toHaveBeenCalledTimes(1);
   });
+  test("real screen-space rays pick the rendered animal and trigger tile selection", () => {
+    const { renderer, engine, select } = setup();
+    renderer.render();
+    const scene = renderer.scene;
+    const head = scene.getMeshByName("animal-head")!;
+    const screen = Vector3.Project(
+      head.getAbsolutePosition(),
+      Matrix.Identity(),
+      scene.getTransformMatrix(),
+      scene.activeCamera!.viewport.toGlobal(
+        engine.getRenderWidth(),
+        engine.getRenderHeight(),
+      ),
+    );
+    const pick = scene.pick(screen.x, screen.y);
+    expect(pick?.hit).toBe(true);
+    expect(pick?.pickedMesh?.metadata.tile).toEqual({ x: 4, z: 2 });
+    scene.onPointerObservable.notifyObservers(
+      new PointerInfo(
+        PointerEventTypes.POINTERPICK,
+        new PointerEvent("pointerup", { button: 0 }),
+        pick,
+      ),
+    );
+    expect(select).toHaveBeenCalledWith({ x: 4, z: 2 });
+  });
   test("camera zoom, rotation, wheel and bounded orthographic framing", () => {
     const { renderer, canvas, engine } = setup();
     const resized = vi.spyOn(engine, "resize");
@@ -287,4 +314,102 @@ describe("original isometric procedural zoo", () => {
       renderer.scene.getTransformNodeByName("keeper")!.position.x,
     ).toBeGreaterThan(1);
   });
+});
+
+test("animals express hunger, thirst, affection and play through recognizable floating icons", () => {
+  const { game, renderer } = setup();
+  const a = game.animals[0];
+  const bubble = renderer.scene.getTransformNodeByName(
+    `bubble-animal-${a.id}`,
+  )!;
+  a.hunger = 10;
+  renderer.render();
+  expect(bubble.isEnabled()).toBe(true);
+  expect(renderer.scene.getMeshByName("need-food")!.isEnabled()).toBe(true);
+  a.hunger = 80;
+  a.water = 10;
+  renderer.render();
+  expect(renderer.scene.getMeshByName("need-food")).toBeNull();
+  expect(renderer.scene.getMeshByName("need-water")!.isEnabled()).toBe(true);
+  a.water = 80;
+  a.joy = 90;
+  renderer.render();
+  expect(renderer.scene.getMeshByName("need-heart")!.isEnabled()).toBe(true);
+  a.joy = 10;
+  renderer.render();
+  expect(renderer.scene.getMeshByName("need-play")!.isEnabled()).toBe(true);
+  a.joy = 50;
+  renderer.render();
+  expect(bubble.isEnabled()).toBe(false);
+  expect(
+    bubble.getChildMeshes().some((mesh) => mesh.name === "need-bubble-cloud"),
+  ).toBe(true);
+});
+
+test("visitors show food, sleepy Z, play and happiness bubbles; keepers display their current job", () => {
+  const { game, renderer } = setup();
+  const v: Visitor = {
+    id: 100,
+    x: 1,
+    z: 4,
+    type: "child",
+    family: 100,
+    happiness: 50,
+    hunger: 10,
+    energy: 80,
+    fun: 80,
+    age: 0,
+    duration: 60,
+    route: [],
+    activity: "watch",
+  };
+  game.animals[0].joy = 50;
+  game.visitors.push(v);
+  renderer.render();
+  expect(renderer.scene.getMeshByName("need-food")!.isEnabled()).toBe(true);
+  v.hunger = 80;
+  v.energy = 10;
+  renderer.render();
+  expect(renderer.scene.getMeshByName("need-rest")!.isEnabled()).toBe(true);
+  v.energy = 80;
+  v.fun = 10;
+  renderer.render();
+  expect(renderer.scene.getMeshByName("need-play")!.isEnabled()).toBe(true);
+  v.fun = 80;
+  v.happiness = 90;
+  renderer.render();
+  expect(renderer.scene.getMeshByName("need-heart")!.isEnabled()).toBe(true);
+  v.happiness = 50;
+  renderer.render();
+  expect(
+    renderer.scene.getTransformNodeByName("bubble-visitor-100")!.isEnabled(),
+  ).toBe(false);
+  for (const kind of [
+    "feed",
+    "water",
+    "pet",
+    "clean",
+    "clear",
+    "repair",
+    "walk",
+  ] as const) {
+    game.keeper.task = {
+      kind,
+      target: game.animals[0],
+      animal: game.animals[0].id,
+      route: [],
+      progress: 0,
+      carrying: kind === "feed" ? "greens" : "",
+    };
+    renderer.render();
+    expect(
+      renderer.scene.getTransformNodeByName("bubble-keeper")!.isEnabled(),
+    ).toBe(true);
+  }
+  expect(renderer.scene.getMeshByName("need-work")!.isEnabled()).toBe(true);
+  game.keeper.task = null;
+  renderer.render();
+  expect(
+    renderer.scene.getTransformNodeByName("bubble-keeper")!.isEnabled(),
+  ).toBe(false);
 });

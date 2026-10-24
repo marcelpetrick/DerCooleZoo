@@ -4,7 +4,7 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
-  timeout: 45000,
+  timeout: 90000,
   expect: { timeout: 10000 },
   reporter: [["list"], ["html", { open: "never" }]],
   use: {
@@ -32,6 +32,8 @@ export default defineConfig({
       name: "firefox",
       use: {
         ...devices["Desktop Firefox"],
+        // Linux CI needs a real X display for Mesa software WebGL.
+        headless: !process.env.CI,
         launchOptions: {
           firefoxUserPrefs: {
             "webgl.force-enabled": true,

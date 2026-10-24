@@ -293,16 +293,24 @@ export function fence(
   g: Game,
   a: Point,
   b: Point,
-  kind: "fence" | "highfence" | "gate",
+  kind: "fence" | "highfence" | "gate" | "remove",
 ): boolean {
   if (
-    !["fence", "highfence", "gate"].includes(kind) ||
+    !["fence", "highfence", "gate", "remove"].includes(kind) ||
     !inside(a, g.size) ||
     !Number.isInteger(b.x) ||
     !Number.isInteger(b.z) ||
     distance(a, b) !== 1
   )
     return false;
+  if (kind === "remove") {
+    const edge = edgeKey(a, b);
+    if (!g.fences[edge]) return false;
+    delete g.fences[edge];
+    g.revision++;
+    g.message = "fenceRemoved";
+    return true;
+  }
   if (
     g.animals.some((an) => equal(an, a)) &&
     g.fences[edgeKey(a, b)] === kind
@@ -338,6 +346,10 @@ export function adopt(g: Game, id: string, p: Point): boolean {
 }
 export function hire(g: Game, role: Role): boolean {
   if (!roles.includes(role)) return false;
+  if (g.workers.length >= 16) {
+    g.message = "staffFull";
+    return false;
+  }
   if (g.stars < 2) {
     g.message = "locked";
     return false;

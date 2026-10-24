@@ -14,6 +14,8 @@ import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
+// Scene.pick is registered separately when using granular Babylon imports.
+import "@babylonjs/core/Culling/ray.js";
 import { getSpecies, buildings } from "./catalog";
 import { points, tile, type Game, type Animal, type Task } from "./game";
 import { edgeKey, type Point } from "./world";
@@ -30,6 +32,9 @@ interface Figure {
   node: TransformNode;
   head: Mesh;
   carry: Mesh;
+  bubble: TransformNode;
+  bubbleKind: string;
+  bubbleHeight: number;
 }
 const terrainColors = {
   grass: "#a8c881",
@@ -477,6 +482,207 @@ export function createRenderer(
     if (id === "litter")
       box(parent, "litter", "#f0e0bd", [x, 0.07, z], [0.2, 0.05, 0.15], at);
   }
+  function thoughtBubble(id: string, at: Point): TransformNode {
+    const node = new TransformNode(`bubble-${id}`, scene);
+    ball(
+      node,
+      "need-bubble-cloud",
+      "#fff9ed",
+      [0, 0, 0],
+      [0.78, 0.66, 0.12],
+      at,
+    );
+    ball(
+      node,
+      "need-bubble-tail",
+      "#fff9ed",
+      [-0.18, -0.33, 0],
+      [0.16, 0.15, 0.1],
+      at,
+    );
+    ball(
+      node,
+      "need-bubble-dot",
+      "#fff9ed",
+      [-0.25, -0.48, 0],
+      [0.09, 0.09, 0.08],
+      at,
+    );
+    node.setEnabled(false);
+    return node;
+  }
+  function needIcon(parent: TransformNode, kind: string, at: Point): void {
+    if (kind === "food") {
+      const carrot = ball(
+        parent,
+        "need-food",
+        "#e29448",
+        [0, -0.03, -0.12],
+        [0.18, 0.37, 0.08],
+        at,
+      );
+      carrot.rotation.z = -0.4;
+      for (const dx of [-0.06, 0.06]) {
+        const leaf = box(
+          parent,
+          "carrot-leaf",
+          "#70a36a",
+          [dx, 0.19, -0.12],
+          [0.07, 0.17, 0.04],
+          at,
+        );
+        leaf.rotation.z = dx * 7;
+      }
+    } else if (kind === "water") {
+      ball(
+        parent,
+        "need-water",
+        "#66b8d6",
+        [0, -0.06, -0.12],
+        [0.29, 0.28, 0.08],
+        at,
+      );
+      ball(
+        parent,
+        "water-drop-tip",
+        "#66b8d6",
+        [0, 0.08, -0.12],
+        [0.16, 0.29, 0.08],
+        at,
+      );
+      ball(
+        parent,
+        "water-sparkle",
+        "#e9f5f0",
+        [-0.06, -0.05, -0.17],
+        [0.045, 0.1, 0.02],
+        at,
+      );
+    } else if (kind === "heart") {
+      for (const dx of [-0.09, 0.09]) {
+        const half = ball(
+          parent,
+          "need-heart",
+          "#df8f9d",
+          [dx, 0.035, -0.12],
+          [0.23, 0.32, 0.08],
+          at,
+        );
+        half.rotation.z = dx < 0 ? 0.6 : -0.6;
+      }
+    } else if (kind === "rest") {
+      for (const y of [-0.14, 0.14])
+        box(
+          parent,
+          "need-rest",
+          "#7294aa",
+          [0, y, -0.12],
+          [0.3, 0.055, 0.05],
+          at,
+        );
+      const slash = box(
+        parent,
+        "sleepy-z",
+        "#7294aa",
+        [0, 0, -0.12],
+        [0.06, 0.34, 0.05],
+        at,
+      );
+      slash.rotation.z = -0.65;
+    } else if (kind === "play") {
+      ball(
+        parent,
+        "need-play",
+        "#e6b863",
+        [0, 0, -0.12],
+        [0.35, 0.35, 0.07],
+        at,
+      );
+      for (const dx of [-0.07, 0.07])
+        ball(
+          parent,
+          "play-eye",
+          "#617a65",
+          [dx, 0.045, -0.17],
+          [0.035, 0.05, 0.02],
+          at,
+        );
+      ball(
+        parent,
+        "play-smile",
+        "#617a65",
+        [0, -0.07, -0.17],
+        [0.14, 0.05, 0.02],
+        at,
+      );
+    } else if (kind === "clean") {
+      const handle = box(
+        parent,
+        "need-clean",
+        "#aa825b",
+        [0.04, 0.04, -0.12],
+        [0.06, 0.34, 0.05],
+        at,
+      );
+      handle.rotation.z = -0.4;
+      box(
+        parent,
+        "cleaning-brush",
+        "#6fa493",
+        [-0.04, -0.15, -0.12],
+        [0.28, 0.14, 0.06],
+        at,
+      );
+    } else {
+      const handle = box(
+        parent,
+        "need-work",
+        "#aa825b",
+        [0, -0.05, -0.12],
+        [0.07, 0.35, 0.05],
+        at,
+      );
+      handle.rotation.z = -0.3;
+      box(
+        parent,
+        "repair-hammer",
+        "#829b98",
+        [0.04, 0.13, -0.12],
+        [0.3, 0.13, 0.06],
+        at,
+      );
+    }
+  }
+  function updateBubble(f: Figure, kind: string): void {
+    f.bubble.setEnabled(kind !== "");
+    if (kind !== f.bubbleKind) {
+      f.bubble
+        .getChildTransformNodes(
+          true,
+          (node) => node.name === `bubble-icon-${f.node.name}`,
+        )
+        .forEach((node) => node.dispose());
+      if (kind) {
+        const icon = new TransformNode(`bubble-icon-${f.node.name}`, scene);
+        icon.parent = f.bubble;
+        needIcon(icon, kind, {
+          x: Math.round(f.node.position.x),
+          z: Math.round(f.node.position.z),
+        });
+      }
+      f.bubbleKind = kind;
+    }
+    f.bubble.position.set(
+      f.node.position.x,
+      f.node.position.y + f.bubbleHeight + Math.sin(game.time * 2) * 0.035,
+      f.node.position.z,
+    );
+    f.bubble.rotation.set(
+      Math.PI / 2 - camera.beta,
+      -camera.alpha - Math.PI / 2,
+      0,
+    );
+  }
   function animal(a: Animal): Figure {
     const s = getSpecies(a.species),
       at = { x: a.x, z: a.z };
@@ -652,7 +858,14 @@ export function createRenderer(
       at,
     );
     carry.setEnabled(false);
-    return { node, head, carry };
+    return {
+      node,
+      head,
+      carry,
+      bubble: thoughtBubble(node.name, at),
+      bubbleKind: "",
+      bubbleHeight: tall ? 1.95 : 1.5,
+    };
   }
   function person(
     id: string,
@@ -715,7 +928,14 @@ export function createRenderer(
     );
     carry.setEnabled(false);
     node.scaling.setAll(height);
-    return { node, head, carry };
+    return {
+      node,
+      head,
+      carry,
+      bubble: thoughtBubble(node.name, at),
+      bubbleKind: "",
+      bubbleHeight: height * 1.35,
+    };
   }
   function updateCamera(): void {
     const aspect = engine.getRenderWidth() / engine.getRenderHeight();
@@ -727,7 +947,10 @@ export function createRenderer(
   function rebuild(): void {
     world.dispose();
     world = new TransformNode("world", scene);
-    for (const figure of figures.values()) figure.node.dispose();
+    for (const figure of figures.values()) {
+      figure.node.dispose();
+      figure.bubble.dispose();
+    }
     figures.clear();
     const center = (game.size - 1) / 2;
     box(
@@ -876,6 +1099,18 @@ export function createRenderer(
       task && !task.route.length ? Math.sin(game.time * 10) * 0.15 : 0;
     f.carry.setEnabled(!!task?.carrying || activity === "snack");
     f.node.scaling.y = (activity === "sit" ? 0.75 : 1) * f.node.scaling.x;
+    const need = task
+      ? task.kind === "feed"
+        ? "food"
+        : task.kind === "water"
+          ? "water"
+          : task.kind === "pet"
+            ? "heart"
+            : ["clean", "clear"].includes(task.kind)
+              ? "clean"
+              : "work"
+      : "";
+    updateBubble(f, need);
     for (const mesh of f.node.getChildMeshes())
       mesh.metadata.tile = { x: at.x, z: at.z };
   }
@@ -902,12 +1137,37 @@ export function createRenderer(
         a.activity === "eat" ? Math.sin(game.time * 8) * 0.2 : 0;
       f.node.scaling.y = a.activity === "sleep" ? 0.75 : 1;
       f.carry.setEnabled(a.activity === "play");
+      updateBubble(
+        f,
+        a.hunger < 40
+          ? "food"
+          : a.water < 40
+            ? "water"
+            : a.joy > 70
+              ? "heart"
+              : a.joy < 40
+                ? "play"
+                : "",
+      );
     }
     animatePerson("keeper", game.keeper, "walk", game.keeper.task);
     for (const w of game.workers)
       animatePerson(`worker-${w.id}`, w, "walk", w.task);
-    for (const v of game.visitors)
+    for (const v of game.visitors) {
       animatePerson(`visitor-${v.id}`, v, v.activity, null);
+      updateBubble(
+        figures.get(`visitor-${v.id}`)!,
+        v.hunger < 35
+          ? "food"
+          : v.energy < 35
+            ? "rest"
+            : v.fun < 35
+              ? "play"
+              : v.happiness > 75
+                ? "heart"
+                : "",
+      );
+    }
     updateCamera();
     scene.render();
   }

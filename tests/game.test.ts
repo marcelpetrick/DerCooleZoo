@@ -44,6 +44,7 @@ import {
   neighbors,
   pathfind,
 } from "../src/world";
+import { exportGame, importGame } from "../src/storage";
 const p = { x: 4, z: 2 };
 function rich() {
   const g = createGame();
@@ -533,4 +534,52 @@ test("a carer still brings water when animal food is out of stock", () => {
   buyFood(g, "greens");
   advance(g, 10);
   expect(g.animals[0].hunger).toBeGreaterThan(65);
+});
+
+test("hiring stops at 16 teammates and every resulting save stays loadable", () => {
+  const g = rich();
+  for (let i = 0; i < 16; i++) {
+    expect(hire(g, "vendor")).toBe(true);
+    expect(importGame(exportGame(g))).toEqual(g);
+  }
+  const coins = g.coins;
+  expect(hire(g, "keeper")).toBe(false);
+  expect(g.workers).toHaveLength(16);
+  expect(g.message).toBe("staffFull");
+  expect(g.coins).toBe(coins);
+  expect(importGame(exportGame(g))).toEqual(g);
+});
+
+test("free fence removal releases trapped visitors even when coins are zero", () => {
+  const g = createGame();
+  g.open = true;
+  advance(g, 5);
+  const v = g.visitors[0];
+  v.x = 2;
+  v.z = 4;
+  v.age = 200;
+  v.route = [];
+  for (const q of points(g)) tile(g, q).object = "";
+  tile(g, { x: 2, z: 4 }).object = "path";
+  tile(g, { x: 1, z: 4 }).object = "entrance";
+  const from = { x: 1, z: 4 },
+    to = { x: 2, z: 4 };
+  g.fences[edgeKey(from, to)] = "fence";
+  g.coins = 0;
+  visit(g, v, 0.5);
+  expect(v.route).toEqual([]);
+  const revision = g.revision;
+  expect(fence(g, from, to, "remove")).toBe(true);
+  expect(g.fences[edgeKey(from, to)]).toBeUndefined();
+  expect(g.coins).toBe(0);
+  expect(g.revision).toBe(revision + 1);
+  expect(g.message).toBe("fenceRemoved");
+  expect(fence(g, from, to, "remove")).toBe(false);
+  expect(fence(g, from, { x: 4, z: 4 }, "remove")).toBe(false);
+  visit(g, v, 0.5);
+  expect(v.route).toEqual([from]);
+  g.time = 5.5;
+  visit(g, v, 0.5);
+  visit(g, v, 0.5);
+  expect(v.age).toBe(999);
 });

@@ -22,8 +22,12 @@ are English. Keep this checklist current; do not call the full vision complete.
 - [x] Verify core flows in Firefox and Chromium and capture a real screenshot.
 - [x] Verify exact ten-second browser autosave and reopen behavior.
 - [x] Commit and push the first playable UI with its version bump.
+- [x] Run reviewBranch, resolve findings and prepare githubAbout metadata.
+- [x] Verify emotion bubbles, action/animal sounds and real world-tile clicking.
+- [ ] Polish walking animations and make the player keeper unmistakable.
+- [ ] Slow early visitor flow and earnings; add more rough, uncleared land.
+- [ ] Enforce collision space for people and animals, with compatible saves.
 - [ ] Complete Docker, Pages and GHCR release verification.
-- [ ] Run reviewBranch, resolve findings and prepare githubAbout metadata.
 - [ ] Verify all remote checks, final pipeline, pushed commits and clean tree.
 
 ## Delivery sequence
@@ -85,3 +89,7 @@ Every commit has a version bump and passes the available pipeline first.
 - Implement and commit each coherent step atomically, after its checks pass.
 
 - Browser-local autosave runs every ten seconds and restores progress on reopen.
+
+## Optional next iteration
+
+- [ ] Consider animal XP from care and admiration, with gentle level-up celebrations.

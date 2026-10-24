@@ -278,5 +278,9 @@
   "message.gateClosed": "The zoo is closed. Time for animal care!",
   "message.imported": "Your zoo is back!",
   "message.importFailed": "This is not a valid zoo save.",
-  "message.chooseNeighbor": "Now click the neighboring tile across the fence edge."
+  "message.chooseNeighbor": "Now click the neighboring tile across the fence edge.",
+  "tool.removefence": "Remove fence (free)",
+  "tool.remove": "Remove fence (free)",
+  "message.staffFull": "Your team is full: 16 helpful teammates!",
+  "message.fenceRemoved": "Fence removed. The way is clear again!"
 }

@@ -11,7 +11,13 @@ test("a child can choose an animal, deliver food, clean up, open the zoo and sav
   await page.locator('[data-action="starter:goat"]').click();
   await page.locator('[data-action="start"]').click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.locator('[data-action="findAnimal"]').click();
+  await page.mouse.click(800, 400);
+  await expect(page.locator(".selection, .animal-profile")).toBeVisible();
+  await expect(page.locator("#keeper-status")).toContainText("Ready", {
+    timeout: 15000,
+  });
+  await page.locator('[data-action="tab:inspect"]').click();
+  await page.locator('[data-action="findAnimal"]').first().click();
   await expect(page.locator(".animal-profile")).toContainText("goat");
   await page.locator('[data-action="care:feed"]').click();
   await expect(page.locator("#keeper-status")).toContainText(/food/i);
@@ -33,6 +39,7 @@ test("a child can choose an animal, deliver food, clean up, open the zoo and sav
       const animal = state.animals[0];
       return state.tiles[animal.z * state.size + animal.x].dirt > 0;
     },
+    undefined,
     { timeout: 30000 },
   );
   await page.locator('[data-action="care:clean"]').click();

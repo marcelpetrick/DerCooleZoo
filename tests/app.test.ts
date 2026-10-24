@@ -127,6 +127,14 @@ describe("playable interface wired to real simulation and renderer", () => {
     expect(app.game.fences[edgeKey({ x: 1, z: 1 }, { x: 1, z: 2 })]).toBe(
       "fence",
     );
+    click("tool:fence:removefence");
+    app.game.coins = 0;
+    app.select({ x: 1, z: 1 });
+    app.select({ x: 2, z: 1 });
+    expect(
+      app.game.fences[edgeKey({ x: 1, z: 1 }, { x: 2, z: 1 })],
+    ).toBeUndefined();
+    app.game.coins = 10000;
     click("expand");
     expect(app.game.size).toBe(10);
     click("tab:animals");
@@ -322,4 +330,38 @@ test("autosaves browser state at ten wall-clock seconds and resumes after remoun
   expect(reopened.app.game.coins).toBe(17);
   expect(reopened.root.querySelector("[role=dialog]")).toBeNull();
   vi.useRealTimers();
+});
+
+test("refreshes care status and unlocks without destroying settings backup text", () => {
+  const { app, root, click } = setup();
+  click("findAnimal");
+  click("care:feed");
+  expect(root.querySelector(".keeper-card small")!.textContent).not.toContain(
+    "Ready",
+  );
+  advance(app.game, 5);
+  app.step(0);
+  expect(root.querySelector(".keeper-card small")!.textContent).toContain(
+    "Ready",
+  );
+  app.action("tab:animals");
+  expect(
+    root.querySelector<HTMLButtonElement>(
+      '[data-action="tool:animal:giraffe"]',
+    )!.disabled,
+  ).toBe(true);
+  app.game.stars = 5;
+  app.step(0);
+  expect(
+    root.querySelector<HTMLButtonElement>(
+      '[data-action="tool:animal:giraffe"]',
+    )!.disabled,
+  ).toBe(false);
+  click("settings");
+  root.querySelector<HTMLTextAreaElement>("#save-data")!.value = "my backup";
+  app.game.stars = 4;
+  app.step(0);
+  expect(root.querySelector<HTMLTextAreaElement>("#save-data")!.value).toBe(
+    "my backup",
+  );
 });

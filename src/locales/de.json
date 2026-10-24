@@ -278,5 +278,9 @@
   "message.gateClosed": "Der Zoo ist geschlossen. Zeit für Tierpflege!",
   "message.imported": "Dein Zoo ist wieder da!",
   "message.importFailed": "Das ist kein passender Zoo-Spielstand.",
-  "message.chooseNeighbor": "Now click the neighboring tile across the fence edge."
+  "message.chooseNeighbor": "Now click the neighboring tile across the fence edge.",
+  "tool.removefence": "Zaun entfernen (gratis)",
+  "tool.remove": "Zaun entfernen (gratis)",
+  "message.staffFull": "Dein Team ist voll: 16 fleißige Helfer!",
+  "message.fenceRemoved": "Der Zaun ist weg. Der Weg ist wieder frei!"
 }

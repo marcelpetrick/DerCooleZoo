@@ -83,6 +83,17 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     elapsed = 0,
     frame = 0,
     disposed = false;
+  let panelTask = game.keeper.task,
+    panelStars = game.stars;
+  let currentSound = "welcome",
+    soundSequence = 0,
+    lastAnimalSound = 0,
+    lastIncome =
+      game.income.tickets + game.income.donations + game.income.sales;
+  function cue(id: string) {
+    currentSound = id + ":" + ++soundSequence;
+    audio.update(game.sound, game.music, currentSound);
+  }
   const tr = (id: string) => t(game.language, id);
   const button = (action: string, label: string, extra = "") =>
     `<button type="button" data-action="${action}" ${extra}>${label}</button>`;
@@ -163,6 +174,12 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
         panel.innerHTML += `<div class="selection"><h3>${object ? tr("building." + object) : tr("terrain." + tile(game, selected).terrain)}</h3><p>${selected.x + 1} · ${selected.z + 1}</p><div class="action-grid">${actionButton("care:walk", `👣 ${tr("ui.walk")}`)}${actionButton("care:clear", `🌱 ${tr("ui.clear")}`)}${actionButton("care:clean", `🧹 ${tr("ui.clean")}`)}${actionButton("care:repair", `🔧 ${tr("ui.repair")}`)}</div></div>`;
       } else
         panel.innerHTML += `<div class="intro-steps"><h3>${tr("ui.start")}</h3><p>1. ${tr("goal.clear")}</p><p>2. ${tr("goal.repair")}</p><p>3. ${tr("goal.feed")}</p><p>4. ${tr("goal.open")}</p></div><div class="action-grid">${actionButton("findAnimal", `🐰 ${tr("ui.animals")}`)}${actionButton("findWeed", `🌱 ${tr("ui.clear")}`)}${actionButton("repairStarter", `🔧 ${tr("ui.repair")}`)}</div>`;
+      if (selected)
+        panel.innerHTML += actionButton(
+          "findAnimal",
+          `🐾 ${tr("ui.animals")}`,
+          'class="wide"',
+        );
       panel.innerHTML += `<button class="primary gate-button" data-action="gate">${game.open ? "🚪 " + tr("ui.close") : "🎟️ " + tr("ui.open")}</button><div class="ticket"><label for="ticket">${tr("ui.ticket")} <strong>${game.ticket} 🪙</strong></label><input id="ticket" data-input="ticket" type="range" min="1" max="20" value="${game.ticket}"/><p>${game.ticket <= attractiveness(game) ? "😄" : "😟"} ${tr("ui.recommended")}: ${attractiveness(game)} 🪙</p></div>`;
     }
     if (tab === "build") {
@@ -176,13 +193,13 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
           )
           .join("");
       else if (category === "fences")
-        panel.innerHTML += ["fence", "highfence", "gate"]
+        panel.innerHTML += ["fence", "highfence", "gate", "removefence"]
           .map((id) =>
             card(
               id === "gate" ? "🚪" : "🪵",
               tr("tool." + id),
               "tool:fence:" + id,
-              `${id === "highfence" ? 3 : 1} 🪙`,
+              `${id === "removefence" ? 0 : id === "highfence" ? 3 : 1} 🪙`,
             ),
           )
           .join("");
@@ -235,6 +252,30 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
         `<label class="setting">${tr("ui.sound")}<input data-input="sound" aria-label="Sound volume" type="range" min="0" max="1" step="0.1" value="${game.sound}"/></label><label class="setting">${tr("ui.music")}<input data-input="music" aria-label="Music volume" type="range" min="0" max="1" step="0.1" value="${game.music}"/></label><div class="action-grid">${actionButton("save", "💾 " + tr("ui.save"))}${actionButton("export", "↗ " + tr("ui.export"))}${actionButton("import", "↙ " + tr("ui.import"))}${actionButton("reset", "🌱 " + tr("ui.newGame"))}</div><label class="setting">${tr("ui.saveData")}<textarea id="save-data" rows="5" spellcheck="false" aria-label="Save data"></textarea></label><p class="note">${tr("ui.resetHint")}</p>`;
   }
   function update() {
+    if (panelTask && !game.keeper.task) cue("done");
+    const income =
+      game.income.tickets + game.income.donations + game.income.sales;
+    if (income !== lastIncome) {
+      cue("coin");
+      lastIncome = income;
+    }
+    if (started && game.time - lastAnimalSound >= 15) {
+      cue(
+        "animal:" +
+          game.animals[Math.floor(game.time / 15) % game.animals.length]
+            .species,
+      );
+      lastAnimalSound = game.time;
+    }
+
+    if (panelTask !== game.keeper.task || panelStars !== game.stars) {
+      if (tab !== "settings") renderPanel();
+      panelTask = game.keeper.task;
+      panelStars = game.stars;
+    }
+    const meter = root.querySelector<HTMLMeterElement>("meter"),
+      animal = selectedAnimal();
+    if (meter && animal) meter.value = welfare(game, animal);
     const avg = Math.round(
       game.animals.reduce((sum, a) => sum + welfare(game, a), 0) /
         game.animals.length,
@@ -282,7 +323,13 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
       if (tool.kind === "animal") adopt(game, tool.id, p);
       if (tool.kind === "fence") {
         if (fenceStart) {
-          fence(game, fenceStart, p, tool.id as "fence" | "highfence" | "gate");
+          fence(
+            game,
+            fenceStart,
+            p,
+            (tool.id === "removefence" ? "remove" : tool.id) as
+              "fence" | "highfence" | "gate" | "remove",
+          );
           fenceStart = null;
         } else {
           fenceStart = p;
@@ -294,6 +341,7 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
       if (!selectedAnimal() && !tile(game, p).object && !tile(game, p).dirt)
         command(game, "walk", p);
     }
+    cue(game.message);
     update();
     renderPanel();
     persist();
@@ -381,7 +429,21 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     const action = (event.target as HTMLElement).closest<HTMLButtonElement>(
       "[data-action]",
     )?.dataset.action;
-    if (action) handleAction(action);
+    if (action) {
+      handleAction(action);
+      const [kind, id] = action.split(":");
+      cue(
+        ["noCoins", "noFood", "noRoute", "locked", "occupied", "busy"].includes(
+          game.message,
+        )
+          ? "error"
+          : kind === "care"
+            ? id
+            : kind === "food"
+              ? "buy"
+              : kind,
+      );
+    }
   }
   function onInput(event: Event) {
     const el = event.target as HTMLInputElement;
@@ -417,7 +479,7 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
       }
     }
     renderer.render();
-    audio.update(game.sound, game.music, game.event);
+    audio.update(game.sound, game.music, currentSound);
     update();
   }
   let last = performance.now();
@@ -427,7 +489,7 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     last = now;
     if (started) tick(game, dt * speed);
     renderer.render();
-    audio.update(game.sound, game.music, game.event);
+    audio.update(game.sound, game.music, currentSound);
     update();
     frame = requestAnimationFrame(animate);
   }

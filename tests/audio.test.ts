@@ -169,3 +169,93 @@ test("contains initialization failures and disposal before unlock", () => {
   untouched.dispose();
   untouched.unlock();
 });
+
+test("every child-friendly action cue supports serials and repeated actions", () => {
+  const { oscillators } = fakeContext();
+  const audio = createAudio();
+  audio.unlock();
+  const actions = [
+    "select",
+    "nav",
+    "tap",
+    "feed",
+    "water",
+    "pet",
+    "clean",
+    "clear",
+    "repair",
+    "built",
+    "buy",
+    "food",
+    "error",
+    "save",
+    "unlock",
+    "walk",
+    "fence",
+    "remove",
+    "hire",
+  ];
+  for (const action of actions) {
+    const before = oscillators.length;
+    audio.update(0.5, 0, `${action}:1`);
+    expect(oscillators).toHaveLength(before + 1);
+    audio.update(0.5, 0, `${action}:1`);
+    expect(oscillators).toHaveLength(before + 1);
+    audio.update(0.5, 0, `${action}:2`);
+    expect(oscillators).toHaveLength(before + 2);
+  }
+  for (const oscillator of oscillators) {
+    expect(oscillator.frequency.linearRampToValueAtTime).toHaveBeenCalledOnce();
+    expect(oscillator.stop.mock.calls[0][0]).toBeLessThan(0.4);
+    expect(["sine", "triangle"]).toContain(oscillator.type);
+  }
+  const before = oscillators.length;
+  audio.update(1, 0, "constructor:1");
+  audio.update(1, 0, "__proto__:2");
+  expect(oscillators).toHaveLength(before);
+  audio.dispose();
+});
+
+test("all catalog animals have distinct gentle synthesized voices and cleanup", async () => {
+  const { species } = await import("../src/catalog");
+  const { oscillators, gains } = fakeContext();
+  const audio = createAudio();
+  audio.unlock();
+  const pitches = new Set<number>();
+  for (const animal of species) {
+    const before = oscillators.length;
+    audio.update(0.4, 0, `animal:${animal.id}:1`);
+    const notes = oscillators.slice(before);
+    expect(notes.length).toBeGreaterThanOrEqual(2);
+    expect(notes.length).toBeLessThanOrEqual(3);
+    pitches.add(notes[0].frequency.setValueAtTime.mock.calls[0][0]);
+    expect(notes[0].start).toHaveBeenCalledWith(0);
+    expect(notes[1].start.mock.calls[0][0]).toBeGreaterThan(0);
+    for (const note of notes) {
+      expect(note.stop.mock.calls[0][0]).toBeLessThan(0.8);
+      expect(["sine", "triangle"]).toContain(note.type);
+      note.onended!();
+      expect(note.disconnect).toHaveBeenCalledOnce();
+    }
+    audio.update(0.4, 0, `animal:${animal.id}:1`);
+    expect(oscillators).toHaveLength(before + notes.length);
+    audio.update(0.4, 0, `animal:${animal.id}:2`);
+    expect(oscillators).toHaveLength(before + notes.length * 2);
+  }
+  expect(pitches.size).toBe(species.length);
+  const before = oscillators.length;
+  audio.update(0.4, 0, "animal:unknown:3");
+  expect(oscillators).toHaveLength(before + 1);
+  expect(oscillators.at(-1)!.frequency.setValueAtTime).toHaveBeenCalledWith(
+    523.25,
+    0,
+  );
+  audio.update(0, 0, "animal:goat:4");
+  expect(oscillators).toHaveLength(before + 1);
+  for (const gain of gains.slice(2)) {
+    expect(
+      gain.gain.linearRampToValueAtTime.mock.calls[0][0],
+    ).toBeLessThanOrEqual(0.08);
+  }
+  audio.dispose();
+});
