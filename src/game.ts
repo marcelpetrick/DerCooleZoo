@@ -8,6 +8,7 @@ import {
   personalities,
   roles,
   species,
+  terrains,
   type Food,
   type Role,
   type Terrain,
@@ -39,7 +40,7 @@ export interface Animal extends Point {
   activity: string;
 }
 export interface Task {
-  kind: "feed" | "water" | "pet" | "clean" | "clear" | "repair";
+  kind: "feed" | "water" | "pet" | "clean" | "clear" | "repair" | "walk";
   target: Point;
   animal: number;
   route: Point[];
@@ -112,7 +113,7 @@ export function createGame(starter = "rabbit"): Game {
     starter = "rabbit";
   const g: Game = {
     schema: 1,
-    language: "de",
+    language: "en",
     size: 8,
     coins: 0,
     stars: 1,
@@ -240,7 +241,7 @@ export function attractiveness(g: Game): number {
   );
 }
 export function pay(g: Game, cost: number): boolean {
-  if (g.coins < cost) {
+  if (!Number.isFinite(cost) || cost < 0 || g.coins < cost) {
     g.message = "noCoins";
     return false;
   }
@@ -282,7 +283,8 @@ export function build(g: Game, id: string, p: Point): boolean {
   return true;
 }
 export function paint(g: Game, terrain: Terrain, p: Point): boolean {
-  if (!inside(p, g.size) || !pay(g, 1)) return false;
+  if (!terrains.includes(terrain) || !inside(p, g.size) || !pay(g, 1))
+    return false;
   tile(g, p).terrain = terrain;
   g.revision++;
   return true;
@@ -293,7 +295,14 @@ export function fence(
   b: Point,
   kind: "fence" | "highfence" | "gate",
 ): boolean {
-  if (!inside(a, g.size) || distance(a, b) !== 1) return false;
+  if (
+    !["fence", "highfence", "gate"].includes(kind) ||
+    !inside(a, g.size) ||
+    !Number.isInteger(b.x) ||
+    !Number.isInteger(b.z) ||
+    distance(a, b) !== 1
+  )
+    return false;
   if (
     g.animals.some((an) => equal(an, a)) &&
     g.fences[edgeKey(a, b)] === kind
@@ -317,7 +326,7 @@ export function adopt(g: Game, id: string, p: Point): boolean {
   if (
     area.length < s.space ||
     g.animals.some((a) => equal(a, p)) ||
-    ["weed", "rock", "stump"].includes(tile(g, p).object)
+    tile(g, p).object !== ""
   ) {
     g.message = "needEnclosure";
     return false;
@@ -371,16 +380,16 @@ export function command(
     return false;
   }
   const a = g.animals.find((a) => a.id === animal);
-  if (["feed", "water", "pet"].includes(kind) && !a) return false;
+  if (["feed", "water", "pet"].includes(kind) && (!a || !equal(a, p)))
+    return false;
   const route = pathfind(
     actor,
     p,
-    (n) => !["rock", "stump"].includes(tile(g, n).object),
+    (n) =>
+      (kind === "clear" && equal(n, p)) ||
+      !["rock", "stump"].includes(tile(g, n).object),
     g.size,
-    (a, b) => {
-      const f = g.fences[edgeKey(a, b)];
-      return f === "fence" || f === "highfence";
-    },
+    (a, b) => blockedByFence(g, a, b),
   );
   if (!equal(actor, p) && !route.length) {
     g.message = "noRoute";
@@ -475,9 +484,16 @@ function staff(g: Game): void {
   for (const w of g.workers) {
     if (w.task || w.role === "vendor") continue;
     if (w.role === "keeper") {
-      const a = g.animals.find((a) => a.hunger < 65 || a.water < 65);
+      const a = g.animals.find(
+        (a) =>
+          (a.hunger < 65 && g.inventory[getSpecies(a.species).food] > 0) ||
+          a.water < 65,
+      );
       if (a) {
-        const kind = a.hunger < 65 ? "feed" : "water";
+        const kind =
+          a.hunger < 65 && g.inventory[getSpecies(a.species).food] > 0
+            ? "feed"
+            : "water";
         command(g, kind, a, a.id, w);
         continue;
       }
@@ -495,19 +511,38 @@ function earn(g: Game, kind: keyof Game["income"], amount: number): void {
   g.income[kind] += amount;
   g.event = "coin";
 }
+function blockedByFence(g: Game, a: Point, b: Point): boolean {
+  const kind = g.fences[edgeKey(a, b)];
+  return kind === "fence" || kind === "highfence";
+}
+function visitorRoute(g: Game, start: Point, target: Point): Point[] {
+  return pathfind(
+    start,
+    target,
+    (p) => isPath(g, p),
+    g.size,
+    (a, b) => blockedByFence(g, a, b),
+  );
+}
 export function visit(g: Game, v: Visitor, dt: number): void {
   v.age += dt;
   v.hunger = clamp(v.hunger - dt * 0.8);
   v.energy = clamp(v.energy - dt * 0.6);
   v.fun = clamp(v.fun - dt * 0.4);
   if (v.route.length) {
+    const next = v.route[0];
+    if (!isPath(g, next) || blockedByFence(g, v, next)) {
+      v.route = [];
+      v.activity = "watch";
+      return;
+    }
     if (Math.floor(g.time * 3) !== Math.floor((g.time - dt) * 3))
       Object.assign(v, v.route.shift()!);
     v.activity = "walk";
     return;
   }
   if (v.age > v.duration || !g.open) {
-    v.route = pathfind(v, entrance, (p) => isPath(g, p), g.size);
+    v.route = visitorRoute(g, v, entrance);
     v.activity = "leave";
     if (equal(v, entrance)) v.age = 999;
     return;
@@ -583,7 +618,7 @@ export function visit(g: Game, v: Visitor, dt: number): void {
   if (Math.floor(g.time / 4) !== Math.floor((g.time - dt) / 4)) {
     const targets = points(g).filter((p) => isPath(g, p) && distance(p, v) > 0);
     const target = targets[Math.floor(random(g) * targets.length)];
-    if (target) v.route = pathfind(v, target, (p) => isPath(g, p), g.size);
+    if (target) v.route = visitorRoute(g, v, target);
   }
   if (
     Math.floor(g.time / 27) !== Math.floor((g.time - dt) / 27) &&
@@ -629,9 +664,12 @@ export function tick(g: Game, seconds: number): void {
     Math.floor(g.time / rate) !== Math.floor(prev / rate)
   ) {
     const family = g.nextId;
-    for (const type of (family % 3 === 0
-      ? ["fan"]
-      : ["parent", "child"]) as Visitor["type"][]) {
+    const arrivals = (
+      family % 3 === 0 ? ["fan"] : ["parent", "child"]
+    ) as Visitor["type"][];
+    for (const type of g.visitors.length + arrivals.length <= 40
+      ? arrivals
+      : []) {
       g.visitors.push({
         ...entrance,
         id: g.nextId++,
@@ -668,5 +706,6 @@ export function tick(g: Game, seconds: number): void {
   goals(g);
 }
 export function advance(g: Game, seconds: number): void {
+  if (!Number.isFinite(seconds) || seconds <= 0) return;
   for (let t = 0; t < seconds; t += 0.25) tick(g, Math.min(0.25, seconds - t));
 }

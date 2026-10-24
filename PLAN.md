@@ -4,6 +4,28 @@ Source: [Vision(1).md](<Vision(1).md>). Audience: children aged eight and up.
 A desktop browser game with an isometric world, a visible keeper, and a zoo
 built from scratch. Original procedural artwork; no external proprietary assets.
 
+## Current delivery scope (latest user instructions)
+
+The immediate delivery is the first runnable English MVP. German/live language
+switching and the broader polished vision are deferred, with the remaining work
+recorded in [docs/vision-status.md](docs/vision-status.md). Code and communication
+are English. Keep this checklist current; do not call the full vision complete.
+
+## Execution checklist
+
+- [x] Read the vision and record requirements and latest scope decisions.
+- [x] Establish GPLv3, pinned TypeScript stack, strict checks and local pipeline.
+- [x] Implement and test the simulation, care, food transport and waste cleanup.
+- [x] Implement original isometric rendering and a visible keeper.
+- [x] Connect playable UI, starter choice, building, economy and progression.
+- [x] Implement validated local saves and English interface.
+- [x] Verify core flows in Firefox and Chromium and capture a real screenshot.
+- [x] Verify exact ten-second browser autosave and reopen behavior.
+- [x] Commit and push the first playable UI with its version bump.
+- [ ] Complete Docker, Pages and GHCR release verification.
+- [ ] Run reviewBranch, resolve findings and prepare githubAbout metadata.
+- [ ] Verify all remote checks, final pipeline, pushed commits and clean tree.
+
 ## Delivery sequence
 
 1. Establish TypeScript/Vite, strict checks, formatting, linting, GPLv3,
@@ -61,3 +83,5 @@ Every commit has a version bump and passes the available pipeline first.
 - Fed animals subsequently produce visible cartoon droppings. The keeper or an
   appropriate worker must travel to remove them.
 - Implement and commit each coherent step atomically, after its checks pass.
+
+- Browser-local autosave runs every ten seconds and restores progress on reopen.

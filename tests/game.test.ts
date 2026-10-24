@@ -406,3 +406,131 @@ describe("visitors and positive economic loop", () => {
     expect(g.coins).toBeGreaterThanOrEqual(0);
   });
 });
+
+describe("simulation regression safeguards", () => {
+  test("keeper reaches and clears a rock or stump without teleporting or crossing other obstacles", () => {
+    for (const object of ["rock", "stump"]) {
+      const g = createGame(),
+        target = { x: 2, z: 5 };
+      tile(g, target).object = object;
+      const start = { x: g.keeper.x, z: g.keeper.z };
+      expect(command(g, "walk", target)).toBe(false);
+      expect(command(g, "clear", target)).toBe(true);
+      expect({ x: g.keeper.x, z: g.keeper.z }).toEqual(start);
+      expect(g.keeper.task!.route.at(-1)).toEqual(target);
+      advance(g, 2);
+      expect(tile(g, target).object).toBe("");
+      expect({ x: g.keeper.x, z: g.keeper.z }).toEqual(target);
+    }
+    const g = createGame();
+    for (const q of points(g)) tile(g, q).object = "rock";
+    tile(g, g.keeper).object = "path";
+    expect(command(g, "clear", { x: 4, z: 5 })).toBe(false);
+  });
+  test("invalid prices and terrain/fence values cannot create money or corrupt the world", () => {
+    const g = rich(),
+      coins = g.coins;
+    for (const cost of [-1, NaN, Infinity, -Infinity])
+      expect(pay(g, cost)).toBe(false);
+    expect(g.coins).toBe(coins);
+    expect(pay(g, 0)).toBe(true);
+    expect(paint(g, "lava" as never, p)).toBe(false);
+    expect(fence(g, p, { x: 4.5, z: 2.5 }, "fence")).toBe(false);
+    expect(fence(g, p, { x: 4, z: 3 }, "wire" as never)).toBe(false);
+    expect(g.coins).toBe(coins);
+    const a = g.animals[0];
+    expect(command(g, "feed", { x: 1, z: 5 }, a.id)).toBe(false);
+    expect(g.inventory.greens).toBe(5);
+    for (const n of [-1, NaN, Infinity]) advance(g, n);
+    expect(g.time).toBe(0);
+  });
+  test("adoption does not place animals inside existing structures", () => {
+    const g = rich(),
+      target = { x: 3, z: 2 };
+    expect(tile(g, target).object).toBe("feeder");
+    expect(adopt(g, "rabbit", target)).toBe(false);
+    expect(g.animals).toHaveLength(1);
+  });
+  test("visitors honor existing fences and stop queued movement when a fence is built", () => {
+    const g = createGame();
+    g.open = true;
+    advance(g, 5);
+    const v = g.visitors[0];
+    for (const q of points(g)) tile(g, q).object = "";
+    for (const q of [
+      { x: 0, z: 4 },
+      { x: 1, z: 4 },
+      { x: 2, z: 4 },
+    ])
+      tile(g, q).object = "path";
+    v.x = 2;
+    v.z = 4;
+    v.route = [];
+    v.age = 1000;
+    const boundary = edgeKey({ x: 1, z: 4 }, { x: 2, z: 4 });
+    g.fences[boundary] = "fence";
+    visit(g, v, 0.5);
+    expect(v.route).toEqual([]);
+    expect(v.x).toBe(2);
+    g.fences[boundary] = "gate";
+    visit(g, v, 0.5);
+    expect(v.route).toEqual([{ x: 1, z: 4 }]);
+    g.fences[boundary] = "highfence";
+    g.time = 5.5;
+    visit(g, v, 0.5);
+    expect(v.x).toBe(2);
+    expect(v.route).toEqual([]);
+    g.fences[boundary] = "gate";
+    visit(g, v, 0.5);
+    visit(g, v, 0.5);
+    expect(v.x).toBe(1);
+    v.x = 2;
+    v.route = [{ x: 1, z: 4 }];
+    tile(g, { x: 1, z: 4 }).object = "";
+    visit(g, v, 0.5);
+    expect(v.x).toBe(2);
+    expect(v.route).toEqual([]);
+  });
+  test("a full zoo admits whole groups without ever exceeding 40 guests", () => {
+    const g = createGame();
+    g.open = true;
+    advance(g, 5);
+    const template = g.visitors[0];
+    g.visitors = Array.from({ length: 39 }, (_, i) => ({
+      ...template,
+      id: 10 + i,
+      family: 10 + i,
+      route: [],
+      age: 0,
+      duration: 10000,
+    }));
+    g.nextId = 100;
+    g.time = 9.75;
+    const tickets = g.income.tickets;
+    tick(g, 0.25);
+    expect(g.visitors).toHaveLength(39);
+    expect(g.income.tickets).toBe(tickets);
+    g.nextId = 102;
+    g.time = 14.75;
+    tick(g, 0.25);
+    expect(g.visitors).toHaveLength(40);
+    g.time = 19.75;
+    tick(g, 0.25);
+    expect(g.visitors).toHaveLength(40);
+  });
+});
+
+test("a carer still brings water when animal food is out of stock", () => {
+  const g = rich();
+  hire(g, "keeper");
+  g.inventory.greens = 0;
+  g.animals[0].hunger = 5;
+  g.animals[0].water = 1;
+  advance(g, 10);
+  expect(g.animals[0].water).toBeGreaterThan(65);
+  expect(g.inventory.greens).toBe(0);
+  expect(g.animals[0].hunger).toBeLessThan(5);
+  buyFood(g, "greens");
+  advance(g, 10);
+  expect(g.animals[0].hunger).toBeGreaterThan(65);
+});
