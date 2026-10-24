@@ -53,3 +53,11 @@ recovery. Coverage gates apply to every application TypeScript file, including t
 renderer and UI, with browser coverage merged where necessary. Browser tests use
 real UI controls. Docker checks run the image and request its health and assets.
 Every commit has a version bump and passes the available pipeline first.
+
+## Additional user requirements
+
+- Food must be purchased into inventory, then physically delivered by the keeper
+  or a hired animal carer. Buying alone never feeds an animal.
+- Fed animals subsequently produce visible cartoon droppings. The keeper or an
+  appropriate worker must travel to remove them.
+- Implement and commit each coherent step atomically, after its checks pass.
