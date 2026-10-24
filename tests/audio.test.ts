@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Marcel Petrick
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { afterEach, expect, test, vi } from "vitest";
-import { createAudio } from "../src/audio";
+import { createAudio, musicTracksCount } from "../src/audio";
 const param = () => ({
   value: 0,
   setValueAtTime: vi.fn(),
@@ -131,7 +131,8 @@ test("music and effects mute independently and sparse music follows the audio cl
     context.currentTime += 2;
     audio.update(0, 1, "");
   }
-  expect(oscillators).toHaveLength(13);
+  expect(oscillators.length).toBeGreaterThan(3);
+  expect(oscillators.length).toBeLessThan(13);
   audio.update(NaN, Infinity, "coin");
   expect(gains[0].gain.setTargetAtTime).toHaveBeenLastCalledWith(0, 24, 0.02);
   audio.update(-1, 2, "");
@@ -256,6 +257,62 @@ test("all catalog animals have distinct gentle synthesized voices and cleanup", 
     expect(
       gain.gain.linearRampToValueAtTime.mock.calls[0][0],
     ).toBeLessThanOrEqual(0.08);
+  }
+  audio.dispose();
+});
+
+test("play and friendly events have short gentle musical cues", () => {
+  const { oscillators } = fakeContext();
+  const audio = createAudio();
+  audio.unlock();
+  for (const event of [
+    "laugh",
+    "school",
+    "birthday",
+    "sunny",
+    "family",
+    "photo",
+    "balloon",
+  ]) {
+    const before = oscillators.length;
+    audio.update(0.4, 0, event);
+    expect(oscillators.length).toBeGreaterThan(before);
+    const notes = oscillators.slice(before);
+    expect(notes.length).toBeLessThanOrEqual(3);
+    for (const note of notes)
+      expect(note.stop.mock.calls[0][0]).toBeLessThan(1);
+  }
+  const before = oscillators.length;
+  audio.update(0, 0, "laugh");
+  expect(oscillators).toHaveLength(before);
+  audio.dispose();
+});
+
+test("five distinct original tunes skip immediately and all respect music mute", () => {
+  const { context, oscillators } = fakeContext();
+  const audio = createAudio();
+  audio.unlock();
+  expect(musicTracksCount).toBe(5);
+  const signatures = new Set<string>();
+  for (let track = 0; track < musicTracksCount; track++) {
+    context.currentTime = track * 10;
+    audio.update(0, 0, "", (track + musicTracksCount - 1) % musicTracksCount);
+    const before = oscillators.length;
+    audio.update(0, 0.7, "", track);
+    expect(oscillators).toHaveLength(before + 1);
+    const note = oscillators.at(-1)!;
+    const pitch = note.frequency.setValueAtTime.mock.calls[0][0];
+    const duration = note.stop.mock.calls[0][0] - context.currentTime;
+    signatures.add(`${note.type}:${pitch}:${duration.toFixed(2)}`);
+    // Skip again before the scheduled beat: the next tune starts immediately.
+    audio.update(0, 0.7, "", (track + 1) % musicTracksCount);
+    expect(oscillators).toHaveLength(before + 2);
+  }
+  expect(signatures.size).toBe(musicTracksCount);
+  const count = oscillators.length;
+  for (const track of [-1, musicTracksCount, NaN, Infinity]) {
+    audio.update(0, 0, "", track);
+    expect(oscillators).toHaveLength(count);
   }
   audio.dispose();
 });

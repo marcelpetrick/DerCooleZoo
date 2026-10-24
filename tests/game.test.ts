@@ -33,6 +33,10 @@ import {
   welfare,
   build,
   addAnimal,
+  figures,
+  occupied,
+  passable,
+  taskRoute,
 } from "../src/game";
 import {
   distance,
@@ -116,7 +120,7 @@ describe("friendly starting economy and catalog", () => {
     expect(buyFood(g, "greens")).toBe(false);
     g.coins = 2;
     expect(buyFood(g, "greens")).toBe(true);
-    expect(g.inventory.greens).toBe(10);
+    expect(g.inventory.greens).toBe(11);
     expect(g.animals[0].hunger).toBe(70);
     expect(buyFood(g, "bad" as never)).toBe(false);
     g.inventory.greens = 0;
@@ -134,6 +138,10 @@ describe("friendly starting economy and catalog", () => {
       terrain: true,
       water: true,
       fence: true,
+      feeder: true,
+      shelter: true,
+      plants: true,
+      rocks: true,
     });
     const initial = welfare(g, a);
     tile(g, a).dirt = 5;
@@ -163,7 +171,7 @@ describe("keeper physically delivers food and clears droppings", () => {
     expect(g.inventory.greens).toBe(4);
     expect(a.hunger).toBe(h);
     expect(command(g, "pet", a, a.id)).toBe(false);
-    advance(g, 4);
+    advance(g, 6);
     expect(g.keeper.task).toBeNull();
     expect(a.hunger).toBeGreaterThan(95);
     advance(g, 9);
@@ -179,7 +187,7 @@ describe("keeper physically delivers food and clears droppings", () => {
       a.water = 1;
       a.joy = 1;
       command(g, kind, a, a.id);
-      advance(g, 5);
+      advance(g, 20);
       expect(kind === "water" ? a.water : a.joy).toBeGreaterThan(95);
     }
     for (const object of ["weed", "rock", "stump"]) {
@@ -191,10 +199,11 @@ describe("keeper physically delivers food and clears droppings", () => {
       advance(g, 2);
       expect(tile(g, q).object).toBe("");
     }
-    tile(g, g.keeper).object = "litter";
-    command(g, "clean", g.keeper);
-    advance(g, 2);
-    expect(tile(g, g.keeper).object).toBe("");
+    const litter = { x: g.keeper.x, z: g.keeper.z };
+    tile(g, litter).object = "litter";
+    command(g, "clean", litter);
+    advance(g, 3);
+    expect(tile(g, litter).object).toBe("");
     command(g, "repair", g.keeper);
     advance(g, 2);
     expect(g.counters.repaired).toBe(1);
@@ -338,13 +347,13 @@ describe("visitors and positive economic loop", () => {
   test("quality, benches, play, snacks and donation boxes affect families", () => {
     const g = rich();
     g.open = true;
-    advance(g, 10);
+    advance(g, 40);
     const parent = g.visitors.find((v) => v.type === "parent")!,
       child = g.visitors.find((v) => v.type === "child")!;
-    for (const v of g.visitors) {
+    for (const [i, v] of g.visitors.entries()) {
       v.route = [];
-      v.x = 4;
-      v.z = 4;
+      v.x = [6, 4, 5][i];
+      v.z = [5, 4, 5][i];
       v.hunger = 30;
       v.energy = 20;
       v.happiness = 90;
@@ -357,8 +366,11 @@ describe("visitors and positive economic loop", () => {
     ] as const)
       tile(g, q).object = id;
     const duration = parent.duration;
-    g.time = 15;
-    for (let i = 0; i < 30; i++) visit(g, child, 0.5);
+    g.time = 24;
+    for (let i = 0; i < 30; i++) {
+      child.route = [];
+      visit(g, child, 0.5);
+    }
     visit(g, parent, 0.5);
     expect(g.income.sales).toBeGreaterThan(0);
     expect(parent.duration).toBeGreaterThan(duration);
@@ -368,7 +380,7 @@ describe("visitors and positive economic loop", () => {
   test("needs, dirt, departure, bins, repeated visits and expensive tickets", () => {
     const g = rich();
     g.open = true;
-    advance(g, 10);
+    advance(g, 40);
     const v = g.visitors[0];
     v.route = [];
     v.x = 1;
@@ -418,10 +430,10 @@ describe("simulation regression safeguards", () => {
       expect(command(g, "walk", target)).toBe(false);
       expect(command(g, "clear", target)).toBe(true);
       expect({ x: g.keeper.x, z: g.keeper.z }).toEqual(start);
-      expect(g.keeper.task!.route.at(-1)).toEqual(target);
+      expect(distance(g.keeper.task!.route.at(-1) ?? g.keeper, target)).toBe(1);
       advance(g, 2);
       expect(tile(g, target).object).toBe("");
-      expect({ x: g.keeper.x, z: g.keeper.z }).toEqual(target);
+      expect(distance(g.keeper, target)).toBe(1);
     }
     const g = createGame();
     for (const q of points(g)) tile(g, q).object = "rock";
@@ -455,7 +467,7 @@ describe("simulation regression safeguards", () => {
   test("visitors honor existing fences and stop queued movement when a fence is built", () => {
     const g = createGame();
     g.open = true;
-    advance(g, 5);
+    advance(g, 20);
     const v = g.visitors[0];
     for (const q of points(g)) tile(g, q).object = "";
     for (const q of [
@@ -495,27 +507,30 @@ describe("simulation regression safeguards", () => {
   test("a full zoo admits whole groups without ever exceeding 40 guests", () => {
     const g = createGame();
     g.open = true;
-    advance(g, 5);
+    advance(g, 20);
     const template = g.visitors[0];
     g.visitors = Array.from({ length: 39 }, (_, i) => ({
       ...template,
       id: 10 + i,
       family: 10 + i,
+      x: 3 + (i % 9),
+      z: 6 + Math.floor(i / 9),
       route: [],
       age: 0,
       duration: 10000,
     }));
+    for (const v of g.visitors) tile(g, v).object = "path";
     g.nextId = 100;
-    g.time = 9.75;
+    g.time = 35.75;
     const tickets = g.income.tickets;
     tick(g, 0.25);
     expect(g.visitors).toHaveLength(39);
     expect(g.income.tickets).toBe(tickets);
     g.nextId = 102;
-    g.time = 14.75;
+    g.time = 53.75;
     tick(g, 0.25);
     expect(g.visitors).toHaveLength(40);
-    g.time = 19.75;
+    g.time = 71.75;
     tick(g, 0.25);
     expect(g.visitors).toHaveLength(40);
   });
@@ -525,14 +540,15 @@ test("a carer still brings water when animal food is out of stock", () => {
   const g = rich();
   hire(g, "keeper");
   g.inventory.greens = 0;
+  g.counters["feeder3z2.greens"] = 0;
   g.animals[0].hunger = 5;
   g.animals[0].water = 1;
-  advance(g, 10);
+  advance(g, 40);
   expect(g.animals[0].water).toBeGreaterThan(65);
   expect(g.inventory.greens).toBe(0);
   expect(g.animals[0].hunger).toBeLessThan(5);
   buyFood(g, "greens");
-  advance(g, 10);
+  advance(g, 40);
   expect(g.animals[0].hunger).toBeGreaterThan(65);
 });
 
@@ -553,7 +569,7 @@ test("hiring stops at 16 teammates and every resulting save stays loadable", () 
 test("free fence removal releases trapped visitors even when coins are zero", () => {
   const g = createGame();
   g.open = true;
-  advance(g, 5);
+  advance(g, 20);
   const v = g.visitors[0];
   v.x = 2;
   v.z = 4;
@@ -582,4 +598,121 @@ test("free fence removal releases trapped visitors even when coins are zero", ()
   visit(g, v, 0.5);
   visit(g, v, 0.5);
   expect(v.age).toBe(999);
+});
+
+describe("larger starting land and authoritative figure collisions", () => {
+  test("starts with a rough deterministic 12x12 world without free tree attractions", () => {
+    const g = createGame();
+    expect(g.size).toBe(12);
+    expect(g.tiles).toHaveLength(144);
+    expect(
+      g.tiles.filter((t) =>
+        ["weed", "rock", "stump", "tree"].includes(t.object),
+      ).length,
+    ).toBeGreaterThan(35);
+    expect(g.tiles.some((t) => t.object === "tree")).toBe(true);
+    expect(createGame().tiles).toEqual(g.tiles);
+    expect(attractiveness(g)).toBe(1);
+    advance(g, 1);
+    expect(g.stars).toBe(1);
+    expect(passable(g, { x: -1, z: 0 })).toBe(false);
+    expect(occupied(g, g.animals[0])).toBe(true);
+    expect(occupied(g, g.keeper, g.keeper)).toBe(false);
+    const tree = points(g).find((p) => tile(g, p).object === "tree")!;
+    const route = taskRoute(g, g.keeper, "clear", tree);
+    expect(route).not.toBeNull();
+    expect(command(g, "clear", tree)).toBe(true);
+    advance(g, 20);
+    expect(tile(g, tree).object).toBe("");
+  });
+  test("admissions are paced at18seconds and initial goal rewards are small", () => {
+    const g = createGame();
+    g.open = true;
+    advance(g, 17.75);
+    expect(g.income.tickets).toBe(0);
+    expect(g.coins).toBe(1);
+    advance(g, 0.25);
+    expect(g.income.tickets).toBe(1);
+    expect(g.visitors).toHaveLength(1);
+    advance(g, 17);
+    expect(g.income.tickets).toBe(1);
+    g.counters.clear = 1;
+    const coins = g.coins;
+    goals(g);
+    expect(g.coins - coins).toBe(1);
+    g.counters.bench = 1;
+    const later = g.coins;
+    goals(g);
+    expect(g.coins - later).toBe(3);
+  });
+  test("feeding finishes beside the animal, then the keeper leaves its gate clear", () => {
+    const g = createGame(),
+      a = g.animals[0];
+    command(g, "feed", a, a.id);
+    const end = g.keeper.task!.route.at(-1)!;
+    expect(distance(end, a)).toBe(1);
+    for (let i = 0; i < 24; i++) {
+      tick(g, 0.25);
+      expect(new Set(figures(g).map(key)).size).toBe(figures(g).length);
+      if (a.hunger > 95)
+        expect(distance(g.keeper, a)).toBeGreaterThanOrEqual(1);
+    }
+    expect(a.hunger).toBeGreaterThan(95);
+    expect(g.keeper.task).toBeNull();
+    expect(g.keeper).toMatchObject({ x: 4, z: 4 });
+  });
+  test("a queued occupied destination waits safely and resumes once it is clear", () => {
+    const g = rich();
+    hire(g, "vendor");
+    const worker = g.workers[0],
+      target = { x: 2, z: 5 };
+    expect(command(g, "walk", target)).toBe(true);
+    Object.assign(worker, target);
+    advance(g, 2);
+    expect(g.keeper).toMatchObject({ x: 1, z: 5 });
+    expect(g.keeper.task).not.toBeNull();
+    expect(importGame(exportGame(g))).toEqual(g);
+    Object.assign(worker, { x: 0, z: 5 });
+    advance(g, 2);
+    expect(g.keeper).toMatchObject(target);
+    expect(g.keeper.task).toBeNull();
+  });
+  test("routes bypass moving blockers and new structures never occupy a figure", () => {
+    const g = rich();
+    hire(g, "vendor");
+    const target = { x: 3, z: 5 };
+    expect(command(g, "walk", target)).toBe(true);
+    Object.assign(g.workers[0], { x: 2, z: 5 });
+    advance(g, 5);
+    expect(g.keeper).toMatchObject(target);
+    g.open = true;
+    advance(g, 20);
+    const visitor = g.visitors[0];
+    const original = tile(g, visitor).object;
+    tile(g, visitor).object = "";
+    expect(build(g, "bench", visitor)).toBe(false);
+    tile(g, visitor).object = original;
+    Object.assign(g.keeper, { x: 4, z: 1 });
+    expect(adopt(g, "rabbit", { x: 4, z: 1 })).toBe(false);
+    for (const p of points(g)) tile(g, p).object = "rock";
+    const coins = g.coins;
+    expect(hire(g, "vendor")).toBe(false);
+    expect(g.coins).toBe(coins);
+  });
+  test("families, caretakers and the player stay on distinct cells throughout real simulation", () => {
+    const g = rich();
+    for (const role of roles) expect(hire(g, role)).toBe(true);
+    g.open = true;
+    expect(command(g, "feed", g.animals[0], g.animals[0].id)).toBe(true);
+    for (let i = 0; i < 800; i++) {
+      tick(g, 0.25);
+      const actors = figures(g);
+      expect(new Set(actors.map(key)).size, `collision at ${g.time}`).toBe(
+        actors.length,
+      );
+      if (i % 100 === 0) expect(importGame(exportGame(g))).toEqual(g);
+    }
+    expect(g.income.tickets).toBeGreaterThan(0);
+    expect(g.animals[0].hunger).toBeGreaterThan(60);
+  });
 });

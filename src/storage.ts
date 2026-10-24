@@ -9,8 +9,25 @@ import {
   species,
   terrains,
 } from "./catalog";
-import { goalIds, type Game } from "./game";
-import { distance, equal, inside, type Point } from "./world";
+import {
+  goalIds,
+  isPath,
+  occupied,
+  naturalTile,
+  passable,
+  points,
+  taskRoute,
+  type Game,
+} from "./game";
+import {
+  distance,
+  enclosure,
+  equal,
+  inside,
+  key,
+  neighbors,
+  type Point,
+} from "./world";
 export const saveKey = "dercoolezoo.save.v1";
 type Check = (value: unknown) => boolean;
 const record = (value: unknown): value is Record<string, unknown> =>
@@ -52,6 +69,9 @@ const map =
       ([key, value]) => keyCheck(key) && check(value),
     );
 
+const tileObject = (g: Game, p: Point): string =>
+  g.tiles[p.z * g.size + p.x].object;
+
 function valid(value: unknown): value is Game {
   if (
     !record(value) ||
@@ -74,6 +94,8 @@ function valid(value: unknown): value is Game {
         "clear",
         "repair",
         "walk",
+        "refill",
+        "refillWater",
       ]),
       target: point,
       animal: number(0, 1e9, true),
@@ -203,20 +225,121 @@ function valid(value: unknown): value is Game {
     if (!task) continue;
     if (!connectedRoute(actor, task.route)) return false;
     const end = task.route.length ? task.route[task.route.length - 1] : actor;
-    if (!equal(end, task.target)) return false;
-    const animal = game.animals.find((a) => a.id === task.animal);
-    if (["feed", "water", "pet"].includes(task.kind) && !animal) return false;
     if (
-      task.kind === "feed"
+      task.kind === "walk"
+        ? !equal(end, task.target)
+        : distance(end, task.target) > 1
+    )
+      return false;
+    if (
+      (task.kind === "refill" && tileObject(game, task.target) !== "feeder") ||
+      (task.kind === "refillWater" &&
+        tileObject(game, task.target) !== "trough")
+    )
+      return false;
+    const animal = game.animals.find((a) => a.id === task.animal);
+    if (
+      ["feed", "water", "pet"].includes(task.kind) &&
+      (!animal || !equal(animal, task.target))
+    )
+      return false;
+    if (
+      task.kind === "feed" || task.kind === "refill"
         ? !foods.includes(task.carrying as never)
         : task.carrying !== ""
     )
       return false;
   }
-  return game.visitors.every(
-    (visitor) =>
-      visitor.family < game.nextId && connectedRoute(visitor, visitor.route),
-  );
+  if (
+    !game.visitors.every(
+      (visitor) =>
+        visitor.family < game.nextId && connectedRoute(visitor, visitor.route),
+    )
+  )
+    return false;
+  // Existing players receive the larger starting land without losing their zoo.
+  if (game.size < 12) {
+    const oldSize = game.size,
+      oldTiles = game.tiles;
+    game.size = 12;
+    game.tiles = Array.from({ length: 144 }, (_, i) => {
+      const x = i % 12,
+        z = Math.floor(i / 12);
+      return x < oldSize && z < oldSize
+        ? oldTiles[z * oldSize + x]
+        : naturalTile(x, z);
+    });
+    game.revision++;
+  }
+  // Older schema-one games allowed family members and workers to share tiles.
+  // Preserve their progress while placing overlapping figures on free cells.
+  const claimed = new Set(game.animals.map(key));
+  if (claimed.size !== game.animals.length) return false;
+  const moved = new Set<Point>();
+  const departing = new Set<Game["visitors"][number]>();
+  for (const actor of [game.keeper, ...game.workers, ...game.visitors]) {
+    const visitor = game.visitors.includes(actor as Game["visitors"][number]);
+    const canStand = (p: Point) =>
+      visitor ? isPath(game, p) : passable(game, p);
+    if (claimed.has(key(actor)) || !canStand(actor)) {
+      const destination = points(game)
+        .filter((p) => canStand(p) && !claimed.has(key(p)))
+        .sort((a, b) => distance(actor, a) - distance(actor, b))[0];
+      if (!destination) {
+        if (visitor) {
+          departing.add(actor as Game["visitors"][number]);
+          continue;
+        }
+        return false;
+      }
+      Object.assign(actor, destination);
+      moved.add(actor);
+    }
+    claimed.add(key(actor));
+  }
+  game.visitors = game.visitors.filter((visitor) => !departing.has(visitor));
+  for (const visitor of game.visitors)
+    if (moved.has(visitor)) visitor.route = [];
+  for (const actor of [game.keeper, ...game.workers]) {
+    const task = actor.task;
+    if (!task) continue;
+    const end = task.route.length ? task.route[task.route.length - 1] : actor;
+    if (moved.has(actor) || (task.kind !== "walk" && equal(end, task.target))) {
+      const route = taskRoute(game, actor, task.kind, task.target);
+      if (route === null) {
+        if (task.carrying) game.inventory[task.carrying]++;
+        actor.task = null;
+      } else task.route = route;
+    }
+  }
+  // Early saves placed a donation box in the only corridor to the starter trough.
+  // Relocate that specific box beside a path, preserving all purchased contents.
+  const oldBox = { x: 5, z: 3 };
+  if (
+    tileObject(game, oldBox) === "donation" &&
+    tileObject(game, { x: 3, z: 2 }) === "feeder" &&
+    tileObject(game, { x: 5, z: 2 }) === "trough"
+  ) {
+    const originalPen = new Set(
+      enclosure(oldBox, game.size, game.fences).map(key),
+    );
+    const destination = points(game)
+      .filter(
+        (p) =>
+          tileObject(game, p) === "" &&
+          !originalPen.has(key(p)) &&
+          !occupied(game, p) &&
+          distance(p, oldBox) <= 4 &&
+          neighbors(p).some((n) => isPath(game, n)),
+      )
+      .sort((a, b) => distance(a, oldBox) - distance(b, oldBox))[0];
+    if (destination) {
+      game.tiles[oldBox.z * game.size + oldBox.x].object = "";
+      game.tiles[destination.z * game.size + destination.x].object = "donation";
+      game.revision++;
+    }
+  }
+  return true;
 }
 export function importGame(text: string): Game | null {
   try {

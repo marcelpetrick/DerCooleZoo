@@ -3,7 +3,7 @@
 /** Local WebAudio synthesis, created only following a user gesture. */
 export interface ZooAudio {
   unlock: () => void;
-  update: (sound: number, music: number, event: string) => void;
+  update: (sound: number, music: number, event: string, track?: number) => void;
   dispose: () => void;
 }
 interface Cue {
@@ -42,6 +42,19 @@ const cues: Record<string, Cue> = {
   fence: { frequency: 330, end: 480, type: "triangle", duration: 0.12 },
   remove: { frequency: 480, end: 720, type: "sine", duration: 0.12 },
   hire: { frequency: 590, end: 890, type: "sine", duration: 0.2 },
+  laugh: { frequency: 640, end: 880, type: "sine", duration: 0.1, pulses: 3 },
+  school: { frequency: 660, end: 880, type: "sine", duration: 0.15, pulses: 2 },
+  birthday: {
+    frequency: 784,
+    end: 1047,
+    type: "triangle",
+    duration: 0.2,
+    pulses: 3,
+  },
+  sunny: { frequency: 523, end: 784, type: "sine", duration: 0.3 },
+  family: { frequency: 659, end: 880, type: "sine", duration: 0.2, pulses: 2 },
+  photo: { frequency: 900, end: 400, type: "triangle", duration: 0.06 },
+  balloon: { frequency: 440, end: 880, type: "sine", duration: 0.3 },
 };
 /** Stylized quiet squeaks, bleats, chirps and hums, rather than recordings. */
 const animalCues: Record<string, Cue> = {
@@ -156,7 +169,51 @@ const animalCues: Record<string, Cue> = {
   },
   hippo: { frequency: 150, end: 220, type: "sine", duration: 0.22, pulses: 2 },
 };
-const melody = [261.63, 329.63, 392, 329.63, 293.66, 349.23, 440, 349.23];
+/** Original tiny tunes: garden waltz, popcorn bounce, otter dance, moonlit nap,
+ * and parade. Short rests and varied rhythms keep the music light. */
+const melodies = [
+  {
+    step: 0.65,
+    type: "sine",
+    notes: [
+      261.63, 329.63, 392, 0, 329.63, 293.66, 349.23, 440, 0, 349.23, 392,
+      329.63, 293.66, 0, 261.63, 0,
+    ],
+  },
+  {
+    step: 0.34,
+    type: "triangle",
+    notes: [
+      392, 0, 523.25, 493.88, 440, 0, 392, 329.63, 349.23, 392, 0, 523.25, 440,
+      349.23, 329.63, 0,
+    ],
+  },
+  {
+    step: 0.43,
+    type: "sine",
+    notes: [
+      329.63, 392, 440, 392, 0, 329.63, 293.66, 0, 349.23, 440, 523.25, 440,
+      392, 0, 329.63, 0,
+    ],
+  },
+  {
+    step: 0.9,
+    type: "sine",
+    notes: [
+      261.63, 0, 392, 329.63, 0, 293.66, 349.23, 0, 329.63, 0, 440, 392, 0,
+      293.66, 261.63, 0,
+    ],
+  },
+  {
+    step: 0.46,
+    type: "triangle",
+    notes: [
+      261.63, 329.63, 392, 523.25, 0, 392, 440, 392, 349.23, 293.66, 349.23,
+      440, 0, 392, 329.63, 261.63,
+    ],
+  },
+] as const;
+export const musicTracksCount = melodies.length;
 const volume = (value: number): number =>
   Number.isFinite(value) ? Math.max(0, Math.min(1, value)) : 0;
 
@@ -168,6 +225,7 @@ export function createAudio(): ZooAudio {
   let lastEvent = "";
   let nextMusicAt = 0;
   let note = 0;
+  let track = 0;
   function tone(
     frequency: number,
     type: OscillatorType,
@@ -222,6 +280,7 @@ export function createAudio(): ZooAudio {
     soundVolume: number,
     musicVolume: number,
     event: string,
+    requestedTrack = 0,
   ): void {
     const changed = lastEvent !== event;
     lastEvent = event;
@@ -260,9 +319,20 @@ export function createAudio(): ZooAudio {
         }
       }
     }
+    const nextTrack = Number.isFinite(requestedTrack)
+      ? ((Math.trunc(requestedTrack) % musicTracksCount) + musicTracksCount) %
+        musicTracksCount
+      : 0;
+    if (nextTrack !== track) {
+      track = nextTrack;
+      note = 0;
+      nextMusicAt = context.currentTime;
+    }
     if (volume(musicVolume) > 0 && context.currentTime >= nextMusicAt) {
-      tone(melody[note++ % melody.length], "sine", 1.2, music);
-      nextMusicAt = context.currentTime + 1.8;
+      const melody = melodies[track];
+      const frequency = melody.notes[note++ % melody.notes.length];
+      if (frequency > 0) tone(frequency, melody.type, melody.step * 1.5, music);
+      nextMusicAt = context.currentTime + melody.step;
     }
   }
   function dispose(): void {

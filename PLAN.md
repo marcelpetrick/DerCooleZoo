@@ -4,12 +4,44 @@ Source: [Vision(1).md](<Vision(1).md>). Audience: children aged eight and up.
 A desktop browser game with an isometric world, a visible keeper, and a zoo
 built from scratch. Original procedural artwork; no external proprietary assets.
 
-## Current delivery scope (latest user instructions)
+## Current delivery scope
 
-The immediate delivery is the first runnable English MVP. German/live language
-switching and the broader polished vision are deferred, with the remaining work
-recorded in [docs/vision-status.md](docs/vision-status.md). Code and communication
-are English. Keep this checklist current; do not call the full vision complete.
+Complete the version-one product described in [Vision(1).md](<Vision(1).md>),
+including German/English live switching and the remaining simulation and visual
+feedback. The latest instructions supersede the previous English-only MVP scope.
+Make the zoo cute, preserve existing saves, work on main, and update this plan in
+every commit. Three subagents own localization, simulation, and renderer polish;
+the primary agent owns integration, browser acceptance, documentation and release.
+
+## Active completion work
+
+- [x] Complete and validate live DE/EN localization, including accessible labels.
+- [x] Add short in-game help for booths, connected paths, fences, gates and care.
+- [x] Make people smaller and cute, with passing lanes for incoming/outgoing flow.
+- [x] Regression-test narrow-path opposing traffic and entrance congestion.
+- [x] Closing stops arrivals and sends every reachable guest to the exit.
+- [x] Add localized tooltips explaining each UI action, use and result.
+- [x] Add a visible growth tutorial with next tasks and hoverable step-by-step guidance.
+- [x] Add five playful music tracks with an accessible Next song button.
+- [x] Complete species habitat checks and distinct vendor behavior.
+- [x] Make feeders/troughs functional, with truthful stock visuals and keeper refills.
+- [x] Give hungry/thirsty animals actionable next-step hints and optional detailed help.
+- [x] Distinguish animal diet bubbles from visitor snack needs.
+- [x] Give friendly events actual gameplay and visible feedback.
+- [x] Add cute species activities and celebrated animal arrivals.
+- [x] Expand browser acceptance to language switching and save persistence.
+- [x] Run the 95% coverage gate without exclusions or lower thresholds.
+- [x] Refresh the real UI screenshot and requirement traceability.
+- [x] Run reviewBranch, address findings, then run githubAbout.
+- [x] Run full pipeline including real Docker smoke verification.
+- [ ] Commit with version bump, push, inspect actual Actions/Pages/GHCR results.
+- [ ] Leave a clean working tree and report child playtesting as unverified.
+
+Local verification for the feature release: 129 tests, 12 browser scenarios across
+Firefox/Chromium, 99.56% statements / 97.99% branches / 99.07% functions / 99.78%
+lines, production build and real Docker smoke check all passed. Two browser workers
+keep software WebGL responsive instead of oversubscribing local/CI CPUs. Review
+findings are resolved; metadata matches GitHub. Remote publication is the next gate.
 
 ## Execution checklist
 
@@ -24,9 +56,9 @@ are English. Keep this checklist current; do not call the full vision complete.
 - [x] Commit and push the first playable UI with its version bump.
 - [x] Run reviewBranch, resolve findings and prepare githubAbout metadata.
 - [x] Verify emotion bubbles, action/animal sounds and real world-tile clicking.
-- [ ] Polish walking animations and make the player keeper unmistakable.
-- [ ] Slow early visitor flow and earnings; add more rough, uncleared land.
-- [ ] Enforce collision space for people and animals, with compatible saves.
+- [x] Polish walking animations and make the player keeper unmistakable.
+- [x] Slow early visitor flow and earnings; add more rough, uncleared land.
+- [x] Enforce collision space for people and animals, with compatible saves.
 - [ ] Complete Docker, Pages and GHCR release verification.
 - [ ] Verify all remote checks, final pipeline, pushed commits and clean tree.
 

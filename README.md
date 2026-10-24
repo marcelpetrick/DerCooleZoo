@@ -8,14 +8,15 @@
 [![Container](https://img.shields.io/badge/container-GHCR-2496ed.svg)](https://github.com/marcelpetrick/DerCooleZoo/pkgs/container/dercoolezoo)
 
 An isometric zoo-building browser game for children aged eight and up. Start with
-one animal, a small untidy plot, your own keeper, and no coins. Care for the animal,
+one animal, an untidy plot, your own keeper, and no coins. Care for the animal,
 welcome visitors, and turn their tickets and donations into a growing little zoo.
 
 **Author:** Marcel Petrick · **License:** GPLv3 or later · **AI-assisted project**
 
 [Play in your browser](https://marcelpetrick.github.io/DerCooleZoo/).
-The first playable version uses English. German localization is deferred; the full
-product vision and remaining work are tracked in [PLAN.md](PLAN.md).
+Choose English or German before starting, or switch languages in Settings at any
+time. The complete version-one requirements and verification are tracked in
+[PLAN.md](PLAN.md) and [the vision audit](docs/vision-status.md).
 
 ![The running zoo game](docs/screenshot.png)
 
@@ -25,20 +26,53 @@ Use a desktop browser with WebGL support. Firefox is the primary target;
 Chromium is also covered by browser tests. No account or installation is needed.
 
 1. Choose your starter animal and explore the little enclosure.
-2. Select the animal to send your keeper to feed, water, or pet it.
+2. Click your animal, then **Feed**, **Bring water**, or **Pet**. The panel shows
+   its actual diet and gives a next-action hint when it needs help.
 3. Clear weeds and repair the enclosure, then open the zoo to visitors.
 4. Buy food into your inventory. Your keeper carries it to the animal; buying
-   food alone does not feed it. A little starter supply and free emergency food
-   prevent getting stuck without coins.
+   food alone does not feed it. Click a feeder and choose **Refill feeder** to
+   deliver food for animals to eat themselves. Empty feeders look empty; hungry
+   animals eat compatible stocked food in their enclosure. Troughs likewise
+   hold real water, which animals drink, and can be refilled by your keeper.
+   A little starter supply and free emergency food prevent getting stuck without
+   coins.
 5. After eating, animals leave cartoon droppings. Select the dirty tile to send
    the keeper to clean it up.
 6. Build paths, benches, snack stalls, and play equipment. Happy visitors stay
    longer, buy snacks, and donate. Expand the land and adopt more animals.
 7. Later, hire staff to help with care and cleaning. Their wages use coins.
 
+New zoos start on a **12 × 12** plot with a little starter clearing and rough land
+to reclaim. Existing saves keep their own layout. Clear weeds, stones, stumps and
+trees, then gradually expand up to **16 × 16** tiles. Visitors arrive at a gentle
+pace, and donations and goal rewards support steady growth rather than a flood of
+coins. Keepers stop beside animals to care for them, and moving figures wait or
+find a clear route instead of sharing a tile.
+
 Use the mouse to select objects and place buildings. Camera buttons provide zoom
 and rotation. Follow the short goals for the first steps. Animals never die from
 management mistakes, and there are no purchases with real money or game-over debts.
+Your keeper stands out in blue with a gold marker above the hat and a gold ring
+underfoot. Thought clouds show food, water, rest, play, affection, and work.
+Smaller, rounded people walk in passing lanes, so incoming and outgoing guests
+can pass each other. Movement eases between tiles, with walking limbs and a
+carried food box.
+
+Animal thought bubbles show their actual diet; visitor hunger uses a snack icon.
+Click a hungry animal or an empty feeder for a direct explanation and action.
+The visible tutorial shows your next growth task. Hover over a task to read the
+steps, or open Goals for the full list. UI tooltips explain actions and outcomes.
+
+Use **? Help** for a short guide to booths, connected paths, fence edges, gates,
+habitats, animal care, and saving. Expand a help topic for more detail when wanted.
+Booths attract nearby guests automatically;
+a vendor helps serve them.
+
+Use the speed button to choose a relaxed **0.5×**, normal **1×**, or faster **2×**
+pace, or pause whenever you like. Build tools change the pointer to a crosshair.
+Sounds and five original playful tunes are generated locally and have separate
+volume controls in Settings; either can be muted. **Next song** skips immediately
+to another tune.
 
 The zoo autosaves every ten seconds in this browser's local storage and restores
 your progress when you reopen it. Clearing browser data removes those
@@ -123,8 +157,8 @@ docker run --rm --publish 8080:8080 ghcr.io/marcelpetrick/dercoolezoo:latest
 ```
 
 See the [package page](https://github.com/marcelpetrick/DerCooleZoo/pkgs/container/dercoolezoo)
-for published versions and access. For a private package, authenticate to GHCR with
-an account that has package-read permission before pulling it.
+for published versions. The released image is publicly pullable without a
+registry login; anonymous access was verified for version `0.3.1`.
 
 ## GitHub Pages and releases
 

@@ -4,6 +4,8 @@ import { defineConfig, devices } from "@playwright/test";
 export default defineConfig({
   testDir: "./e2e",
   fullyParallel: true,
+  // Software WebGL competes for CPU; keep both browser engines responsive in CI.
+  workers: 2,
   timeout: 90000,
   expect: { timeout: 10000 },
   reporter: [["list"], ["html", { open: "never" }]],
