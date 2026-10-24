@@ -10,7 +10,8 @@ import { Color3, Color4 } from "@babylonjs/core/Maths/math.color.js";
 import { HemisphericLight } from "@babylonjs/core/Lights/hemisphericLight.js";
 import { DirectionalLight } from "@babylonjs/core/Lights/directionalLight.js";
 import { MeshBuilder } from "@babylonjs/core/Meshes/meshBuilder.js";
-import type { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { Mesh } from "@babylonjs/core/Meshes/mesh.js";
+import { VertexData } from "@babylonjs/core/Meshes/mesh.vertexData.js";
 import { TransformNode } from "@babylonjs/core/Meshes/transformNode.js";
 import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js";
 import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
@@ -777,17 +778,38 @@ export function createRenderer(
         at,
       );
     } else if (kind === "heart") {
-      for (const dx of [-0.09, 0.09]) {
-        const half = ball(
-          parent,
-          "need-heart",
-          "#df8f9d",
-          [dx, 0.035, -0.12],
-          [0.23, 0.32, 0.08],
-          at,
+      // A single flat silhouette keeps the notch and pointed tip readable at
+      // bubble size; overlapping ellipsoids looked like two rounded cheeks.
+      const heart = new Mesh("need-heart", scene);
+      heart.parent = parent;
+      heart.position.z = -0.12;
+      heart.metadata = { tile: { ...at } };
+      const positions = [0, 0, 0];
+      const normals = [0, 0, -1];
+      const indices: number[] = [];
+      const segments = 64;
+      for (let i = 0; i < segments; i++) {
+        const angle = (i / segments) * Math.PI * 2;
+        positions.push(
+          16 * Math.sin(angle) ** 3 * 0.014,
+          (13 * Math.cos(angle) -
+            5 * Math.cos(2 * angle) -
+            2 * Math.cos(3 * angle) -
+            Math.cos(4 * angle)) *
+            0.014,
+          0,
         );
-        half.rotation.z = dx < 0 ? 0.6 : -0.6;
+        normals.push(0, 0, -1);
+        indices.push(0, i + 1, ((i + 1) % segments) + 1);
       }
+      const geometry = new VertexData();
+      geometry.positions = positions;
+      geometry.normals = normals;
+      geometry.indices = indices;
+      geometry.applyToMesh(heart);
+      const pink = material("#e76c91");
+      pink.backFaceCulling = false;
+      heart.material = pink;
     } else if (kind === "rest") {
       for (const y of [-0.14, 0.14])
         box(
@@ -890,6 +912,11 @@ export function createRenderer(
       }
       f.bubbleKind = kind;
     }
+    const icon = scene.getTransformNodeByName(`bubble-icon-${f.node.name}`);
+    if (icon)
+      icon.scaling.setAll(
+        kind === "heart" ? 1 + Math.sin(game.time * 4) * 0.06 : 1,
+      );
     f.bubble.position.set(
       f.node.position.x,
       f.node.position.y + f.bubbleHeight + Math.sin(game.time * 2) * 0.035,

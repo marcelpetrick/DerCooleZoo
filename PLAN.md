@@ -132,3 +132,16 @@ Every commit has a version bump and passes the available pipeline first.
 ## Optional next iteration
 
 - [ ] Consider animal XP from care and admiration, with gentle level-up celebrations.
+
+## Heart bubble readability patch (0.4.2)
+
+- [x] Replace the ambiguous overlapping halves with one notched, pointed heart.
+- [x] Keep affection animation to a subtle uniform pulse.
+- [x] Verify silhouette/pulse, real WebGL screenshot, full pipeline and Docker.
+- [x] Prepare the versioned patch for commit and publication.
+
+Validation: 129 tests and 12 Firefox/Chromium scenarios passed; all coverage
+metrics exceed 95%, and the production Docker smoke test passed. The actual UI
+screenshot confirms the pointed heart. Supplemental review found no blockers;
+GitHub About metadata still matches. Post-push gate: inspect the resulting
+Actions/Pages/GHCR jobs before reporting the patch released.

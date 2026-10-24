@@ -336,7 +336,28 @@ test("animals express hunger, thirst, affection and play through recognizable fl
   a.water = 80;
   a.joy = 90;
   renderer.render();
-  expect(renderer.scene.getMeshByName("need-heart")!.isEnabled()).toBe(true);
+  const heart = renderer.scene.getMeshByName("need-heart")!;
+  expect(heart.isEnabled()).toBe(true);
+  const vertices = heart.getVerticesData("position")!;
+  const outline = Array.from({ length: vertices.length / 3 - 1 }, (_, i) => ({
+    x: vertices[(i + 1) * 3],
+    y: vertices[(i + 1) * 3 + 1],
+  }));
+  const bottom = outline.reduce((a, b) => (a.y < b.y ? a : b));
+  expect(Math.abs(bottom.x)).toBeLessThan(0.001);
+  expect(bottom.y).toBeLessThan(-0.2);
+  const notch = outline[0];
+  expect(notch.x).toBe(0);
+  expect(notch.y).toBeGreaterThan(0);
+  expect(outline.some((p) => p.x < -0.1 && p.y > notch.y + 0.05)).toBe(true);
+  expect(outline.some((p) => p.x > 0.1 && p.y > notch.y + 0.05)).toBe(true);
+  const icon = renderer.scene.getTransformNodeByName(
+    `bubble-icon-animal-${a.id}`,
+  )!;
+  game.time += 0.4;
+  renderer.render();
+  expect(icon.scaling.x).toBeGreaterThan(1);
+  expect(icon.scaling.x).toBeLessThanOrEqual(1.06);
   a.joy = 10;
   renderer.render();
   expect(renderer.scene.getMeshByName("need-play")!.isEnabled()).toBe(true);
