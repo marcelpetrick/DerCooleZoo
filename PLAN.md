@@ -13,7 +13,26 @@ Make the zoo cute, preserve existing saves, work on main, and update this plan i
 every commit. Three subagents completed localization, simulation, and renderer polish;
 the primary agent integrated them and owns browser acceptance and release.
 
-## Active completion work
+## Active work: simpler care and enclosures (0.5.0)
+
+Feedback: the game felt unclear and dull for 7–8 year olds, the keeper's
+"fetch from the feeder, then feed" chain was confusing, and building a new
+enclosure was not discoverable.
+
+- [x] Direct keeper jobs: Feed / Pet / Clean go straight to the animal; feeding
+      also waters the whole pen; cleaning tidies the whole pen.
+- [x] Remove food store, feeder/trough refills, emergency food and water runs;
+      troughs never run dry; old saves migrate.
+- [x] A new keeper order replaces the current one instead of "busy".
+- [x] Keeper job list, clickable chores in the world, My animals quick select.
+- [x] One-click themed enclosures (6 habitats × 2 sizes) with gate, ground,
+      food bowl, trough and shelter; each species fits its matching preset.
+- [x] One-click adoption into a fitting home, otherwise open the right preset.
+- [x] German by default for German browsers; all new text in DE and EN.
+- [x] Unit, integration and Firefox/Chromium scenarios for the new flows.
+- [ ] Child playtest of the new flow (cannot be automated).
+
+## Earlier completion work
 
 - [x] Complete and validate live DE/EN localization, including accessible labels.
 - [x] Add short in-game help for booths, connected paths, fences, gates and care.
@@ -121,7 +140,7 @@ Every commit has a version bump and passes the available pipeline first.
 
 ## Additional user requirements
 
-- Food must be purchased into inventory, then physically delivered by the keeper
+- (Superseded in 0.5.0) Food was purchased into inventory, then physically delivered by the keeper
   or a hired animal carer. Buying alone never feeds an animal.
 - Fed animals subsequently produce visible cartoon droppings. The keeper or an
   appropriate worker must travel to remove them.

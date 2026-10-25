@@ -14,8 +14,8 @@ welcome visitors, and turn their tickets and donations into a growing little zoo
 **Author:** Marcel Petrick · **License:** GPLv3 or later · **AI-assisted project**
 
 [Play in your browser](https://marcelpetrick.github.io/DerCooleZoo/).
-Choose English or German before starting, or switch languages in Settings at any
-time. The complete version-one requirements and verification are tracked in
+The game starts in German when the browser is set to German, otherwise in
+English. Choose a language before starting, or switch in Settings at any time. The complete version-one requirements and verification are tracked in
 [PLAN.md](PLAN.md) and [the vision audit](docs/vision-status.md).
 
 ![The running zoo game](docs/screenshot.png)
@@ -26,21 +26,27 @@ Use a desktop browser with WebGL support. Firefox is the primary target;
 Chromium is also covered by browser tests. No account or installation is needed.
 
 1. Choose your starter animal and explore the little enclosure.
-2. Click your animal, then **Feed**, **Bring water**, or **Pet**. The panel shows
-   its actual diet and gives a next-action hint when it needs help.
-3. Clear weeds and repair the enclosure, then open the zoo to visitors.
-4. Buy food into your inventory. Your keeper carries it to the animal; buying
-   food alone does not feed it. Click a feeder and choose **Refill feeder** to
-   deliver food for animals to eat themselves. Empty feeders look empty; hungry
-   animals eat compatible stocked food in their enclosure. Troughs likewise
-   hold real water, which animals drink, and can be refilled by your keeper.
-   A little starter supply and free emergency food prevent getting stuck without
-   coins.
-5. After eating, animals leave cartoon droppings. Select the dirty tile to send
-   the keeper to clean it up.
-6. Build paths, benches, snack stalls, and play equipment. Happy visitors stay
+2. Click your animal (in the world or under **My animals**) and press one of three
+   big buttons: **Feed**, **Pet** or **Clean**. The keeper walks over and does it
+   straight away. One feeding brings food _and_ fresh water to every animal in
+   that enclosure. It costs 1 coin, or nothing when you have no coins (and
+   rabbit-only enclosures always eat for free).
+3. The **Keeper jobs** list shows what needs doing right now (hungry animals,
+   mess, weeds, the broken fence). Click a job, or click weeds and mess in the
+   world, and the keeper starts at once. A new job simply replaces the old one.
+4. Clear weeds and repair the enclosure, then open the zoo to visitors.
+5. After eating, animals leave cartoon droppings. **Clean** tidies the whole
+   enclosure in one go. Water troughs never run dry.
+6. To get a new animal, open **Build → Enclosures**, pick a ready-made home
+   (Meadow, Mud, Sand, Pond, Snow or Jungle; small 3 × 3 or big 4 × 4) and click
+   a free spot beside a path. The fence, gate, ground, food bowl, water trough and
+   shelter appear at once. Then click the animal under **Animals**: it moves into
+   a fitting enclosure by itself. If no home fits, the game opens the right
+   enclosure for you.
+7. Build paths, benches, snack stalls, and play equipment. Happy visitors stay
    longer, buy snacks, and donate. Expand the land and adopt more animals.
-7. Later, hire staff to help with care and cleaning. Their wages use coins.
+8. Later, hire staff to help with care and cleaning. Their wages use coins.
+   Experts can still place single fences and paint ground by hand.
 
 New zoos start on a **12 × 12** plot with a little starter clearing and rough land
 to reclaim. Existing saves keep their own layout. Clear weeds, stones, stumps and
@@ -49,13 +55,12 @@ pace, and donations and goal rewards support steady growth rather than a flood o
 coins. Keepers stop beside animals to care for them, and moving figures wait or
 find a clear route instead of sharing a tile.
 
-If the keeper is busy, **Stop current job** frees them and returns undelivered
-food or reserved planting coins. If a building or fence makes a route impossible,
+**Stop current job** frees the keeper and returns reserved planting coins. If a building or fence makes a route impossible,
 the job stops safely; temporary visitor queues still wait and resume.
 
 Select an empty tile and choose **Plant flowers · 2** to send your keeper to
 plant there. Coins are refunded if that plot becomes occupied before the work
-finishes. Carers skip unreachable animals and reserve each delivery once.
+finishes. Carers skip unreachable animals and never both walk to the same one.
 
 Use the mouse to select objects and place buildings. Camera buttons provide zoom
 and rotation. Follow the short goals for the first steps. Animals never die from
@@ -67,11 +72,11 @@ can pass each other. Movement eases between tiles, with walking limbs and a
 carried food box.
 
 Animal thought bubbles show their actual diet; visitor hunger uses a snack icon.
-Click a hungry animal or an empty feeder for a direct explanation and action.
+Click a hungry animal to see pulsing need meters and its three care buttons.
 The visible tutorial shows your next growth task. Hover over a task to read the
 steps, or open Goals for the full list. UI tooltips explain actions and outcomes.
 
-Use **? Help** for a short guide to booths, connected paths, fence edges, gates,
+Use **? Help** for a short guide to booths, connected paths, enclosures, gates,
 habitats, animal care, and saving. Expand a help topic for more detail when wanted.
 Booths attract nearby guests automatically;
 a vendor helps serve them.

@@ -151,12 +151,6 @@ test("rejects malformed JSON, huge files, primitives and unsupported worlds", ()
       g.tiles[0].dirt = 9;
     },
     (g) => {
-      g.inventory.greens = -1;
-    },
-    (g) => {
-      delete (g.inventory as Partial<Game["inventory"]>).fish;
-    },
-    (g) => {
       g.income.donations = -1;
     },
     (g) => {
@@ -205,7 +199,7 @@ test("rejects malformed JSON, huge files, primitives and unsupported worlds", ()
   for (const change of changes)
     expect(mutated(change), change.toString()).toBeNull();
 });
-test("queued jobs require valid targets, contiguous routes and inventory payloads", () => {
+test("queued jobs require valid targets, contiguous routes and carried food", () => {
   const g = createGame();
   command(g, "feed", g.animals[0], g.animals[0].id);
   expect(importGame(exportGame(g))).toEqual(g);
@@ -244,7 +238,7 @@ test("queued jobs require valid targets, contiguous routes and inventory payload
   g.keeper.x = g.animals[0].x;
   g.keeper.z = g.animals[0].z + 1;
   g.keeper.task = null;
-  command(g, "water", g.animals[0], g.animals[0].id);
+  command(g, "pet", g.animals[0], g.animals[0].id);
   expect(importGame(exportGame(g))).toEqual(g);
 });
 test("visitor paths and family references are validated", () => {
@@ -287,12 +281,10 @@ test("upgrades old8x8 and10x10 zoos to12 for free, preserving all existing conte
     tile(legacy, { x: 2, z: 7 }).object = "bench";
     legacy.counters.bench = 1;
     legacy.coins = 37;
-    legacy.inventory.fruit = 19;
     const restored = importGame(exportGame(legacy))!;
     expect(restored).not.toBeNull();
     expect(restored.size).toBe(12);
     expect(restored.coins).toBe(37);
-    expect(restored.inventory).toEqual(legacy.inventory);
     expect(restored.animals).toEqual(legacy.animals);
     for (let z = 0; z < size; z++)
       for (let x = 0; x < size; x++)
@@ -348,7 +340,7 @@ test("repairs old family piles and an old keeper delivery ending on its animal",
   expect(restored.animals[0].hunger).toBeGreaterThan(95);
 });
 
-test("repairs a keeper already standing on its animal and refunds impossible legacy delivery", () => {
+test("repairs a keeper already standing on its animal and drops an impossible legacy delivery", () => {
   const legacy = createGame(),
     animal = legacy.animals[0];
   Object.assign(legacy.keeper, { x: animal.x, z: animal.z });
@@ -386,7 +378,6 @@ test("repairs a keeper already standing on its animal and refunds impossible leg
   const restored = importGame(exportGame(blocked))!;
   expect(restored).not.toBeNull();
   expect(restored.keeper.task).toBeNull();
-  expect(restored.inventory.greens).toBe(blocked.inventory.greens + 1);
 });
 
 test("legacy overflow visitors leave gracefully while impossible worker placement is rejected", () => {
@@ -418,24 +409,26 @@ test("legacy starter donation boxes move beside a path to unblock the water trou
   const restored = importGame(exportGame(g))!;
   expect(tile(restored, { x: 5, z: 3 }).object).toBe("");
   expect(restored.tiles.filter((t) => t.object === "donation")).toHaveLength(1);
-  expect(command(restored, "refillWater", { x: 5, z: 2 })).toBe(true);
+  expect(command(restored, "walk", { x: 5, z: 3 })).toBe(true);
 });
 
-test("resource refill tasks validate their facility targets and carried food", () => {
-  const g = createGame();
-  expect(command(g, "refill", { x: 3, z: 2 })).toBe(true);
-  expect(importGame(exportGame(g))).toEqual(g);
-  const wrong = structuredClone(g);
-  wrong.keeper.task!.carrying = "";
-  expect(importGame(exportGame(wrong))).toBeNull();
-  const noFeeder = structuredClone(g);
-  tile(noFeeder, { x: 3, z: 2 }).object = "";
-  expect(importGame(exportGame(noFeeder))).toBeNull();
-  g.keeper.task = null;
-  expect(command(g, "refillWater", { x: 5, z: 2 })).toBe(true);
-  const noTrough = structuredClone(g);
-  tile(noTrough, { x: 5, z: 2 }).object = "";
-  expect(importGame(exportGame(noTrough))).toBeNull();
+test("saves from the food-store era load without their retired jobs", () => {
+  for (const kind of ["water", "refill", "refillWater"]) {
+    const g = createGame();
+    command(g, "walk", { x: 2, z: 4 });
+    const legacy = JSON.parse(exportGame(g));
+    legacy.inventory = { greens: 3, grain: 1, fruit: 0, fish: 0, meat: 0 };
+    legacy.counters["feeder3z2.greens"] = 2;
+    legacy.counters.water5z2 = 1;
+    legacy.keeper.task.kind = kind;
+    legacy.keeper.task.carrying = kind === "refill" ? "greens" : "";
+    const restored = importGame(JSON.stringify(legacy))!;
+    expect(restored).not.toBeNull();
+    expect(restored.keeper.task).toBeNull();
+    expect("inventory" in restored).toBe(false);
+    expect(restored.counters["feeder3z2.greens"]).toBeUndefined();
+    expect(restored.counters.water5z2).toBeUndefined();
+  }
 });
 
 test("queued planting saves restore and reject food payloads on a gardening task", () => {

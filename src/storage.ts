@@ -10,10 +10,10 @@ import {
   terrains,
 } from "./catalog";
 import {
+  cancelTask,
   goalIds,
   isPath,
   occupied,
-  plantCost,
   naturalTile,
   passable,
   points,
@@ -193,9 +193,6 @@ function valid(value: unknown): value is Game {
       size * size,
     ),
     keeper: shape(actor),
-    inventory: shape(
-      Object.fromEntries(foods.map((food) => [food, number(0, 1e12, true)])),
-    ),
     income: shape({ tickets: counter, donations: counter, sales: counter }),
     goals: list(choice(goalIds), goalIds.length),
     counters: map(token, counter, 100000),
@@ -209,6 +206,14 @@ function valid(value: unknown): value is Game {
   })(value);
   if (!validShape) return false;
   const game = value as unknown as Game;
+  // Version 0.5 dropped the food store, feeder refills and water runs: the
+  // keeper now feeds and waters a pen in one job. Retire those old jobs.
+  delete (game as Partial<{ inventory: unknown }>).inventory;
+  for (const actor of [game.keeper, ...game.workers])
+    if (["water", "refill", "refillWater"].includes(actor.task?.kind ?? ""))
+      actor.task = null;
+  for (const id of Object.keys(game.counters))
+    if (/^(feeder|water)\d/.test(id)) delete game.counters[id];
   if (
     game.tiles.length !== size * size ||
     game.animals.length === 0 ||
@@ -233,20 +238,14 @@ function valid(value: unknown): value is Game {
         : distance(end, task.target) > 1
     )
       return false;
-    if (
-      (task.kind === "refill" && tileObject(game, task.target) !== "feeder") ||
-      (task.kind === "refillWater" &&
-        tileObject(game, task.target) !== "trough")
-    )
-      return false;
     const animal = game.animals.find((a) => a.id === task.animal);
     if (
-      ["feed", "water", "pet"].includes(task.kind) &&
+      ["feed", "pet"].includes(task.kind) &&
       (!animal || !equal(animal, task.target))
     )
       return false;
     if (
-      task.kind === "feed" || task.kind === "refill"
+      task.kind === "feed"
         ? !foods.includes(task.carrying as never)
         : task.carrying !== ""
     )
@@ -308,11 +307,8 @@ function valid(value: unknown): value is Game {
     const end = task.route.length ? task.route[task.route.length - 1] : actor;
     if (moved.has(actor) || (task.kind !== "walk" && equal(end, task.target))) {
       const route = taskRoute(game, actor, task.kind, task.target);
-      if (route === null) {
-        if (task.carrying) game.inventory[task.carrying]++;
-        if (task.kind === "plant") game.coins += plantCost;
-        actor.task = null;
-      } else task.route = route;
+      if (route === null) cancelTask(game, actor);
+      else task.route = route;
     }
   }
   // Early saves placed a donation box in the only corridor to the starter trough.

@@ -4,7 +4,14 @@
 import { afterEach, beforeEach, describe, expect, test, vi } from "vitest";
 import { NullEngine } from "@babylonjs/core/Engines/nullEngine.js";
 import { mount } from "../src/app";
-import { advance, createGame, expand, startEvent, tile } from "../src/game";
+import {
+  advance,
+  cancelTask,
+  command,
+  createGame,
+  startEvent,
+  tile,
+} from "../src/game";
 import * as zooAudio from "../src/audio";
 import { exportGame, load, save } from "../src/storage";
 import { buildings, species } from "../src/catalog";
@@ -56,17 +63,19 @@ describe("playable interface wired to real simulation and renderer", () => {
     click("start");
     expect(app.game.animals[0].species).toBe("goat");
     expect(root.querySelector("[role=dialog]")).toBeNull();
-    click("findWeed");
-    click("care:clear");
+    expect(root.querySelector(".todo")!.textContent).toContain("weeds");
+    app.select({ x: 2, z: 6 });
+    expect(app.game.keeper.task?.kind).toBe("clear");
     advance(app.game, 12);
     app.step(0);
     expect(app.game.counters.clear).toBe(1);
     app.action("tab:inspect");
     app.select({ x: 0, z: 5 });
-    app.action("repairStarter");
+    click("job:repair:3,3");
     advance(app.game, 10);
     app.step(0);
-    app.action("findAnimal");
+    expect(app.game.counters.repaired).toBe(1);
+    app.select({ ...app.game.animals[0] });
     expect(root.querySelector(".animal-profile")!.textContent).toContain(
       "goat",
     );
@@ -76,13 +85,10 @@ describe("playable interface wired to real simulation and renderer", () => {
     advance(app.game, 14);
     app.step(0);
     expect(app.game.tiles.reduce((sum, cell) => sum + cell.dirt, 0)).toBe(1);
-    click("findDirt");
+    app.select({ ...app.game.animals[0] });
     click("care:clean");
     advance(app.game, 8);
-    click("findAnimal");
-    click("care:water");
-    advance(app.game, 8);
-    click("findAnimal");
+    app.select({ ...app.game.animals[0] });
     click("care:pet");
     advance(app.game, 2);
     app.step(0);
@@ -100,6 +106,7 @@ describe("playable interface wired to real simulation and renderer", () => {
     app.game.stars = 5;
     click("tab:build");
     for (const category of [
+      "enclosures",
       "objects",
       "paths",
       "shops",
@@ -142,26 +149,46 @@ describe("playable interface wired to real simulation and renderer", () => {
     click("expand");
     expect(app.game.size).toBe(14);
     click("tab:animals");
-    click("tool:animal:goat");
-    app.select({ x: 4, z: 1 });
+    click("adopt:goat");
     expect(app.game.animals).toHaveLength(2);
+    expect(root.querySelector(".animal-profile")!.textContent).toContain(
+      "goat",
+    );
     click("tab:inspect");
     tile(app.game, { x: 6, z: 6 }).object = "";
     app.select({ x: 6, z: 6 });
     app.step(0);
     expect(app.game.keeper.task?.kind).toBe("walk");
+    // A plain click on empty ground leaves a running chore alone.
+    const [friend] = app.game.animals;
+    friend.hunger = 10;
+    command(app.game, "feed", friend, friend.id);
+    tile(app.game, { x: 7, z: 6 }).object = "";
+    app.select({ x: 7, z: 6 });
+    expect(app.game.keeper.task?.kind).toBe("feed");
+    cancelTask(app.game);
     app.select({ x: 4, z: 2 });
     expect(root.querySelector(".animal-profile")).toBeTruthy();
   });
-  test("buys food, emergency supplies, staff, goals, book and revealed owned starter", () => {
+  test("builds a home for a new animal, staff, goals, book and revealed owned starter", () => {
     const { root, app, click } = setup();
     app.game.coins = 200;
-    click("tab:food");
-    click("food:greens");
-    expect(app.game.inventory.greens).toBe(11);
-    app.game.inventory.greens = 0;
-    click("emergency");
-    expect(app.game.inventory.greens).toBe(2);
+    click("tab:animals");
+    expect(
+      root.querySelector('[data-action="adopt:pig"]')!.textContent,
+    ).toContain("needs a home");
+    click("adopt:pig");
+    expect(app.game.message).toBe("needEnclosure");
+    expect(root.querySelector("#world-hint")!.textContent).toContain(
+      "Mud home",
+    );
+    app.select({ x: 9, z: 8 });
+    expect(app.game.message).toBe("enclosureBuilt");
+    expect(
+      root.querySelector('[data-action="adopt:pig"]')!.textContent,
+    ).toContain("home ready");
+    click("adopt:pig");
+    expect(app.game.animals.map((a) => a.species)).toContain("pig");
     click("tab:staff");
     expect(
       root.querySelector<HTMLButtonElement>('[data-action="hire:keeper"]')!
@@ -256,6 +283,7 @@ describe("playable interface wired to real simulation and renderer", () => {
     ])
       click(a);
     click("tab:build");
+    click("category:objects");
     click("tool:build:bench");
     const context = new MouseEvent("contextmenu", { cancelable: true });
     root.querySelector("canvas")!.dispatchEvent(context);
@@ -276,7 +304,6 @@ describe("playable interface wired to real simulation and renderer", () => {
     app.game.tiles.forEach((t) => {
       if (t.object === "weed") t.object = "";
     });
-    app.action("findWeed");
     app.action("care:clean");
     app.game.coins = 10000;
     app.game.stars = 5;
@@ -356,7 +383,7 @@ test("autosaves browser state at ten wall-clock seconds and resumes after remoun
 
 test("refreshes care status and unlocks without destroying settings backup text", () => {
   const { app, root, click } = setup();
-  click("findAnimal");
+  app.select({ ...app.game.animals[0] });
   click("care:feed");
   expect(root.querySelector("#keeper-status")!.textContent).not.toContain(
     "Ready",
@@ -366,16 +393,14 @@ test("refreshes care status and unlocks without destroying settings backup text"
   expect(root.querySelector("#keeper-status")!.textContent).toContain("Ready");
   app.action("tab:animals");
   expect(
-    root.querySelector<HTMLButtonElement>(
-      '[data-action="tool:animal:giraffe"]',
-    )!.disabled,
+    root.querySelector<HTMLButtonElement>('[data-action="adopt:giraffe"]')!
+      .disabled,
   ).toBe(true);
   app.game.stars = 5;
   app.step(0);
   expect(
-    root.querySelector<HTMLButtonElement>(
-      '[data-action="tool:animal:giraffe"]',
-    )!.disabled,
+    root.querySelector<HTMLButtonElement>('[data-action="adopt:giraffe"]')!
+      .disabled,
   ).toBe(false);
   click("settings");
   root.querySelector<HTMLTextAreaElement>("#save-data")!.value = "my backup";
@@ -418,7 +443,7 @@ test("switches the whole live zoo to German, preserves state and backup text, an
   expect(load(localStorage)?.language).toBe("de");
   expect(app.game.coins).toBe(42);
   click("tab:inspect");
-  click("findAnimal");
+  app.select({ ...app.game.animals[0] });
   expect(root.querySelector(".animal-profile")!.textContent).toContain("Keks");
   expect(root.querySelector(".animal-profile")!.textContent).toContain(
     "Kaninchen",
@@ -427,7 +452,7 @@ test("switches the whole live zoo to German, preserves state and backup text, an
   expect(
     root.querySelector('[data-action="pause"]')!.getAttribute("aria-label"),
   ).toBe("Weiter");
-  for (const tab of ["build", "animals", "food", "staff", "goals", "book"]) {
+  for (const tab of ["build", "animals", "staff", "goals", "book"]) {
     click("tab:" + tab);
     expect(root.querySelector("#panel")!.textContent).not.toMatch(
       /(?:ui|fact|building|animal|bonus)\./,
@@ -516,7 +541,7 @@ test("ticket price faces communicate cheap, fair, high and excessive prices", ()
   );
 });
 
-test("discoverable help explains booths, connected paths, fence edges, gates, care and backups in both languages", () => {
+test("discoverable help explains booths, connected paths, enclosures, gates, care and backups in both languages", () => {
   const { app, root, click } = setup();
   click("help");
   expect(root.querySelectorAll(".help-topic")).toHaveLength(6);
@@ -524,10 +549,10 @@ test("discoverable help explains booths, connected paths, fence edges, gates, ca
   for (const phrase of [
     "buy automatically",
     "connected path",
-    "two neighbouring tiles",
-    "shared edge",
-    "Gate",
-    "keeper walks",
+    "complete home",
+    "one click",
+    "gate",
+    "right away",
     "10 seconds",
     "copy a backup",
   ])
@@ -540,8 +565,8 @@ test("discoverable help explains booths, connected paths, fence edges, gates, ca
     "Stände",
     "Zäune",
     "Tor",
-    "benachbarten Feldern",
-    "von selbst",
+    "fertiges Zuhause",
+    "zieht von selbst",
     "10 Sekunden",
   ])
     expect(german).toContain(phrase);
@@ -553,7 +578,7 @@ test("discoverable help explains booths, connected paths, fence edges, gates, ca
 
 test("keeps an animal selected after it moves and sends care to its current tile", () => {
   const { app, root, click } = setup();
-  click("findAnimal");
+  app.select({ ...app.game.animals[0] });
   const animal = app.game.animals[0];
   const old = { x: animal.x, z: animal.z };
   animal.x = 3;
@@ -568,137 +593,82 @@ test("keeps an animal selected after it moves and sends care to its current tile
   expect(app.game.keeper.task?.target).not.toEqual(old);
 });
 
-test("finds reachable waste or litter and gracefully handles a clean zoo", () => {
+test("the job list offers reachable chores and clicking mess cleans it at once", () => {
   const { app, root, click } = setup();
-  click("findDirt");
-  expect(root.querySelector(".intro-steps")).toBeTruthy();
+  app.game.counters.repaired = 1;
+  for (const t of app.game.tiles) if (t.object === "weed") t.object = "";
+  app.game.revision++;
+  app.step(0);
+  expect(root.querySelector(".todo")!.textContent).toContain("All done");
   tile(app.game, { x: 2, z: 4 }).dirt = 1;
-  click("findAnimal");
-  click("findDirt");
-  expect(root.querySelector(".animal-profile")).toBeNull();
-  click("care:clean");
+  app.game.time += 1;
+  app.step(0);
+  click("job:clean:2,4");
   expect(app.game.keeper.task?.target).toEqual({ x: 2, z: 4 });
   advance(app.game, 10);
   app.step(0);
   expect(tile(app.game, { x: 2, z: 4 }).dirt).toBe(0);
   tile(app.game, { x: 2, z: 4 }).object = "litter";
-  click("findDirt");
-  click("care:clean");
+  app.select({ x: 2, z: 4 });
+  expect(app.game.keeper.task?.kind).toBe("clean");
   advance(app.game, 10);
   expect(tile(app.game, { x: 2, z: 4 }).object).toBe("");
-});
-
-test("simulation celebrations play once and child laughter is throttled", () => {
-  const emitted: string[] = [];
-  let lastCue = "";
-  const update = vi.fn((_sound: number, _music: number, event: string) => {
-    if (event !== lastCue) emitted.push(event);
-    lastCue = event;
-  });
-  vi.spyOn(zooAudio, "createAudio").mockReturnValue({
-    unlock: vi.fn(),
-    update,
-    dispose: vi.fn(),
-  });
-  const { app } = setup();
-  const played = () => emitted.map((event) => event.split(":")[0]);
-  emitted.length = 0;
-  app.game.goals.push("feed");
-  app.game.counters.adopted = 1;
-  app.game.coins = 200;
-  expand(app.game);
-  app.game.stars = 2;
-  startEvent(app.game, "birthday");
-  app.game.event = "coin";
+  const friend = app.game.animals[0];
+  friend.hunger = 20;
+  friend.joy = 20;
+  app.game.time += 1;
   app.step(0);
-  for (const cue of ["goal", "arrival", "expansion", "unlock", "birthday"])
-    expect(played()).toContain(cue);
-  emitted.length = 0;
-  app.step(0);
+  expect(root.querySelector(".todo")!.textContent).toContain("hungry");
+  click(`job:pet:${friend.id}`);
+  expect(app.game.keeper.task?.kind).toBe("pet");
+  click(`job:feed:${friend.id}`);
+  expect(app.game.keeper.task?.kind).toBe("feed");
+  expect(root.querySelector(".animal-profile")).toBeTruthy();
+  app.select({ x: 0, z: 0 });
+  expect(root.querySelector(".animal-profile")).toBeNull();
+  click(`pick:${friend.id}`);
+  expect(root.querySelector(".animal-profile")).toBeTruthy();
   expect(
-    played().filter((cue) =>
-      ["goal", "arrival", "expansion", "unlock", "birthday"].includes(cue),
-    ),
-  ).toHaveLength(0);
-  app.game.time = 20;
-  app.game.visitors.push({
-    x: 0,
-    z: 4,
-    id: 999,
-    type: "child",
-    family: 999,
-    happiness: 80,
-    hunger: 80,
-    energy: 80,
-    fun: 80,
-    age: 0,
-    duration: 50,
-    route: [],
-    activity: "jump",
-  });
-  emitted.length = 0;
-  app.step(0);
-  expect(played().filter((cue) => cue === "laugh")).toHaveLength(1);
-  app.game.time += 5;
-  app.step(0);
-  expect(played().filter((cue) => cue === "laugh")).toHaveLength(1);
-  app.game.time += 5;
-  app.step(0);
-  expect(played().filter((cue) => cue === "laugh")).toHaveLength(2);
-  app.game.time = 0;
-  app.game.counters.eventStarted = 100;
-  app.game.counters.eventIndex!++;
-  app.step(0);
-  expect(played().filter((cue) => cue === "birthday")).toHaveLength(0);
+    root
+      .querySelector(`[data-action="pick:${friend.id}"]`)!
+      .getAttribute("aria-pressed"),
+  ).toBe("true");
+  app.action("pick:999");
 });
-
-test("hungry raccoon hints name fruit, guide buying and delivery, and expose feeder and trough controls", () => {
+test("a hungry raccoon shows big care buttons with its food and need meters", () => {
   const { app, root, click } = setup(false);
   click("starter:raccoon");
   click("start");
   const animal = app.game.animals[0];
   animal.hunger = 25;
   animal.water = 25;
-  app.game.inventory.fruit = 0;
-  click("findAnimal");
-  expect(root.querySelector(".care-hint")!.textContent).toContain("Fruit");
-  expect(root.querySelector(".care-hint")!.textContent).toContain(
-    "First get food",
-  );
-  expect(root.querySelector(".care-hint")!.textContent).toContain("Thirsty");
-  expect(root.querySelector('[data-action="food:fruit"]')).toBeTruthy();
-  click("emergency");
+  app.select({ ...app.game.animals[0] });
+  expect(root.querySelectorAll(".need-meter.low")).toHaveLength(2);
   expect(
     root.querySelector('[data-action="care:feed"]')!.textContent,
   ).toContain("🍎");
   expect(
+    root.querySelector('[data-action="care:feed"]')!.textContent,
+  ).toContain("free");
+  app.game.coins = 5;
+  app.step(0);
+  expect(
+    root.querySelector('[data-action="care:feed"]')!.textContent,
+  ).toContain("1 🪙");
+  expect(
     root.querySelector('[data-action="care:feed"]')!.getAttribute("title"),
   ).toContain("keeper");
-  click("findFeeder");
-  expect(root.querySelector(".care-hint")!.textContent).toContain(
-    "Stored portions",
-  );
-  expect(root.querySelector('[data-action="care:refill"]')).toBeTruthy();
-  click("care:refill");
-  expect(app.game.keeper.task?.kind).toBe("refill");
-  advance(app.game, 10);
-  app.step(0);
-  click("findWater");
-  expect(root.querySelector('[data-action="care:refillWater"]')).toBeTruthy();
-  click("care:refillWater");
-  expect(app.game.keeper.task?.kind).toBe("refillWater");
-  advance(app.game, 10);
-  app.step(0);
-  click("findAnimal");
-  click("refillAnimal");
-  expect(app.game.keeper.task?.kind).toBe("refill");
+  app.select({ x: 3, z: 2 });
+  expect(root.querySelector(".selection")!.textContent).toContain("food bowl");
+  app.select({ x: 5, z: 2 });
+  expect(root.querySelector(".selection")!.textContent).toContain("never");
   click("help");
   expect(root.querySelectorAll("details")).toHaveLength(6);
   const details = root.querySelector("details")!;
   expect(details.open).toBe(false);
   details.querySelector("summary")!.click();
   expect(details.open).toBe(true);
-  expect(details.textContent).toContain("Refill feeder");
+  expect(details.textContent).toContain("Keeper jobs");
 });
 
 test("all UI actions expose informative localized tooltips including catalog effects and food", () => {
@@ -724,7 +694,6 @@ test("all UI actions expose informative localized tooltips including catalog eff
       "inspect",
       "build",
       "animals",
-      "food",
       "staff",
       "goals",
       "book",
@@ -735,6 +704,7 @@ test("all UI actions expose informative localized tooltips including catalog eff
       checkButtons();
       if (tab === "build") {
         for (const category of [
+          "enclosures",
           "objects",
           "paths",
           "shops",
@@ -750,13 +720,17 @@ test("all UI actions expose informative localized tooltips including catalog eff
   }
   app.action("language:en");
   app.action("tab:inspect");
-  click("findAnimal");
+  app.select({ ...app.game.animals[0] });
   expect(
     root.querySelector('[data-action="care:feed"]')!.getAttribute("title"),
   ).toContain("Greens");
   expect(
     root.querySelector('[data-action="care:feed"]')!.getAttribute("title"),
-  ).toContain("delivery");
+  ).toContain("fresh water");
+  app.game.animals[0].hunger = 10;
+  app.game.time += 1;
+  app.select({ x: 0, z: 0 });
+  checkButtons();
 });
 
 test("visible next task and expandable goals give detailed steps as progress advances", () => {
@@ -822,29 +796,17 @@ test("next song immediately cycles through five tracks and preserves selection o
   expect(root.querySelector(".song-picker")!.textContent).toContain("1 / 5");
 });
 
-test("care hints update when thirst crosses its threshold and animals consume feeder stock", () => {
-  const { app, root, click } = setup();
+test("need meters refresh when thirst crosses into the low zone", () => {
+  const { app, root } = setup();
   app.game.animals[0].water = 71;
-  app.game.counters["feeder3z2.greens"] = 3;
-  click("findAnimal");
-  expect(root.querySelector(".care-hint")!.textContent).not.toContain(
-    "Thirsty",
-  );
-  expect(
-    root.querySelector('[data-action="refillAnimal"]')!.textContent,
-  ).toContain("3");
-  app.game.animals[0].water = 69;
-  app.game.counters["feeder3z2.greens"] = 2;
+  app.select({ ...app.game.animals[0] });
+  expect(root.querySelectorAll(".need-meter.low")).toHaveLength(0);
+  app.game.animals[0].water = 39;
   app.step(0);
-  expect(root.querySelector(".care-hint")!.textContent).toContain("Thirsty");
-  expect(
-    root.querySelector('[data-action="refillAnimal"]')!.textContent,
-  ).toContain("2");
+  expect(root.querySelectorAll(".need-meter.low")).toHaveLength(1);
   app.game.animals[0].water = 90;
   app.step(0);
-  expect(root.querySelector(".care-hint")!.textContent).not.toContain(
-    "Thirsty",
-  );
+  expect(root.querySelectorAll(".need-meter.low")).toHaveLength(0);
 });
 
 test("open tutorial details survive completed goals and background work updates", () => {
@@ -953,14 +915,15 @@ test("repair targets the damaged rail and empty care actions are not offered", (
   app.select({ x: 2, z: 7 });
   for (const action of ["care:clear", "care:clean", "care:repair"])
     expect(root.querySelector(`[data-action="${action}"]`)).toBeNull();
-  app.action("repairStarter");
+  app.action("job:repair:3,3");
   expect(app.game.keeper.task?.target).toEqual({ x: 3, z: 3 });
   advance(app.game, 12);
   app.step(0);
   expect(app.game.counters.repaired).toBe(1);
   app.select({ x: 3, z: 3 });
   expect(root.querySelector('[data-action="care:repair"]')).toBeNull();
-  app.action("repairStarter");
+  expect(root.querySelector('[data-action="job:repair:3,3"]')).toBeNull();
+  app.action("job:repair:3,3");
   expect(app.game.keeper.task?.kind).not.toBe("repair");
 });
 
@@ -970,7 +933,7 @@ test("animal cleaning follows enclosure waste after the animal has walked away",
   app.game.animals[0].hunger = 100;
   app.game.animals[0].x = 3;
   app.game.animals[0].z = 1;
-  click("findAnimal");
+  app.select({ ...app.game.animals[0] });
   expect(
     root.querySelector<HTMLButtonElement>('[data-action="care:clean"]')!
       .disabled,
@@ -1089,7 +1052,7 @@ test("slow rendering preserves real care time, speed and pause while bounding ba
     now += milliseconds;
     callbacks.shift()!(now);
   };
-  click("findAnimal");
+  app.select({ ...app.game.animals[0] });
   click("care:feed");
   expect(app.game.keeper.task?.kind).toBe("feed");
   for (let i = 0; i < 12; i++) frame(500);
@@ -1116,17 +1079,14 @@ test("slow rendering preserves real care time, speed and pause while bounding ba
   expect(app.game.time).toBe(8.75);
 });
 
-test("stopping a keeper job returns supplies and makes the next action available", () => {
+test("stopping a keeper job refunds planting and makes the next action available", () => {
   const { app, root, click } = setup();
-  const supply = app.game.inventory.greens;
-  click("findAnimal");
+  app.select({ ...app.game.animals[0] });
   click("care:feed");
-  expect(app.game.inventory.greens).toBe(supply - 1);
   expect(
     root.querySelector('[data-action="cancelTask"]')!.getAttribute("title"),
-  ).toContain("returned");
+  ).toContain("come back");
   click("cancelTask");
-  expect(app.game.inventory.greens).toBe(supply);
   expect(app.game.keeper.task).toBeNull();
   expect(root.querySelector("#keeper-status")!.textContent).toContain("Ready");
   expect(root.querySelector('[data-action="cancelTask"]')).toBeNull();

@@ -2,9 +2,6 @@
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { describe, expect, test } from "vitest";
 import {
-  expand,
-  feederStock,
-  waterStock,
   addAnimal,
   canRepair,
   canPlant,
@@ -16,13 +13,13 @@ import {
   adopt,
   advance,
   animalRoutine,
-  buyFood,
   command,
   cancelTask,
   build,
   createGame,
   figures,
   friendlyEvents,
+  goalIds,
   habitat,
   hire,
   occupied,
@@ -178,18 +175,25 @@ describe("living animals and modest starter perks", () => {
   });
   test("rabbit food is thrifty, guinea care is easier, and pigs entertain children", () => {
     const rabbit = wealthy();
-    buyFood(rabbit, "greens");
-    expect(rabbit.inventory.greens).toBe(11);
+    const coins = rabbit.coins;
+    rabbit.goals = [...goalIds];
+    command(rabbit, "feed", rabbit.animals[0], rabbit.animals[0].id);
+    advance(rabbit, 10);
+    expect(rabbit.animals[0].hunger).toBeGreaterThan(90);
+    expect(rabbit.coins).toBe(coins);
     const goat = createGame("goat");
     goat.coins = 4;
-    buyFood(goat, "greens");
-    buyFood(goat, "fruit");
-    expect(goat.inventory.greens).toBe(10);
-    expect(goat.inventory.fruit).toBe(10);
-    const guinea = createGame("guinea");
-    advance(guinea, 10);
+    goat.goals.push("feed");
+    command(goat, "feed", goat.animals[0], goat.animals[0].id);
     advance(goat, 10);
-    expect(guinea.animals[0].hunger).toBeGreaterThan(goat.animals[0].hunger);
+    expect(goat.coins).toBe(3);
+    const guinea = createGame("guinea"),
+      plainGoat = createGame("goat");
+    advance(guinea, 10);
+    advance(plainGoat, 10);
+    expect(guinea.animals[0].hunger).toBeGreaterThan(
+      plainGoat.animals[0].hunger,
+    );
     const pig = createGame("pig");
     pig.open = true;
     const child = guest(pig, 4, 4);
@@ -461,97 +465,12 @@ test("workers skip sealed cleanup jobs and perform reachable ones", () => {
   expect(tile(g, reachable).dirt).toBe(0);
 });
 
-describe("stocked feeders and water troughs have real contents", () => {
-  test("hungry animals consume correct delivered food, not pantry stock or another diet", () => {
-    const g = createGame("raccoon"),
-      a = g.animals[0],
-      feeder = { x: 3, z: 2 };
-    expect(feederStock(g, feeder, "fruit")).toBe(1);
-    expect(feederStock(g, feeder)).toBe(1);
-    a.hunger = 20;
-    const pantry = g.inventory.fruit;
-    tick(g, 0.25);
-    expect(a.hunger).toBe(100);
-    expect(a.activity).toBe("eat");
-    expect(a.digestion).toBeGreaterThan(7);
-    expect(feederStock(g, feeder)).toBe(0);
-    expect(g.inventory.fruit).toBe(pantry);
-    a.hunger = 20;
-    g.counters["feeder3z2.greens"] = 1;
-    tick(g, 0.25);
-    expect(a.hunger).toBeLessThan(20);
-    expect(feederStock(g, feeder, "greens")).toBe(1);
-    g.coins = 10;
-    buyFood(g, "fruit");
-    tick(g, 0.25);
-    expect(a.hunger).toBeLessThan(20);
-    expect(feederStock(g, feeder, "fruit")).toBe(0);
-  });
-  test("refilling reserves actual food and the keeper must reach the feeder before it is stocked", () => {
-    const g = createGame("raccoon"),
-      a = g.animals[0],
-      feeder = { x: 3, z: 2 };
-    g.counters["feeder3z2.fruit"] = 0;
-    const pantry = g.inventory.fruit;
-    expect(command(g, "refill", feeder, a.id)).toBe(true);
-    expect(g.keeper.task).toMatchObject({
-      kind: "refill",
-      carrying: "fruit",
-      animal: 0,
-    });
-    expect(g.inventory.fruit).toBe(pantry - 1);
-    expect(feederStock(g, feeder)).toBe(0);
-    expect(importGame(exportGame(g))).toEqual(g);
-    advance(g, 0.25);
-    expect(feederStock(g, feeder)).toBe(0);
-    advance(g, 10);
-    expect(feederStock(g, feeder, "fruit")).toBe(1);
-    a.hunger = 20;
-    tick(g, 0.25);
-    expect(a.hunger).toBe(100);
-    expect(feederStock(g, feeder)).toBe(0);
-    expect(importGame(exportGame(g))).toEqual(g);
-  });
-  test("empty inventory, unreachable feeder, wrong object or missing animal never creates food", () => {
-    const g = createGame(),
-      feeder = { x: 3, z: 2 };
-    g.inventory.greens = 0;
-    expect(command(g, "refill", feeder)).toBe(false);
-    expect(g.message).toBe("noFood");
-    expect(command(g, "refill", { x: 2, z: 5 })).toBe(false);
-    expect(command(g, "refill", feeder, 999)).toBe(false);
-    g.inventory.greens = 5;
-    g.fences[edgeKey({ x: 4, z: 3 }, { x: 4, z: 4 })] = "fence";
-    expect(command(g, "refill", feeder)).toBe(false);
-    expect(g.inventory.greens).toBe(5);
-    expect(feederStock(g, feeder)).toBe(1);
-  });
-  test("trough contents deplete and require the keeper to carry fresh water there", () => {
-    const g = createGame(),
-      a = g.animals[0],
-      trough = { x: 5, z: 2 };
-    expect(waterStock(g, trough)).toBe(1);
-    a.water = 10;
-    tick(g, 0.25);
-    expect(a.water).toBe(100);
-    expect(waterStock(g, trough)).toBe(0);
-    a.water = 10;
-    tick(g, 0.25);
-    expect(a.water).toBeLessThan(10);
-    expect(command(g, "refillWater", trough)).toBe(true);
-    expect(waterStock(g, trough)).toBe(0);
-    expect(importGame(exportGame(g))).toEqual(g);
-    advance(g, 10);
-    expect(a.water).toBeGreaterThan(95);
-    expect(waterStock(g, trough)).toBe(0);
-    expect(command(g, "refillWater", { x: 2, z: 5 })).toBe(false);
-    expect(importGame(exportGame(g))).toEqual(g);
-  });
-  test("animals seek distant resources within their enclosure and never consume through an enclosure fence", () => {
+describe("water troughs and ponds", () => {
+  test("never run dry, and animals walk to them inside their own pen only", () => {
     const g = createGame(),
       a = g.animals[0];
     for (const p of points(g)) tile(g, p).object = "";
-    // A larger closed pen creates a genuine trip to the resources.
+    // A larger closed pen creates a genuine trip to the trough.
     g.fences = {};
     for (let x = 2; x <= 8; x++)
       for (let z = 1; z <= 3; z++) {
@@ -567,22 +486,14 @@ describe("stocked feeders and water troughs have real contents", () => {
       }
     a.x = 2;
     a.z = 2;
-    a.hunger = 20;
     a.water = 20;
-    const food = { x: 8, z: 2 },
-      water = { x: 8, z: 3 };
-    tile(g, food).object = "feeder";
-    g.counters["feeder8z2.greens"] = 1;
-    tile(g, water).object = "trough";
-    g.counters["water8z3"] = 1;
+    tile(g, { x: 8, z: 3 }).object = "trough";
     advance(g, 36);
-    expect(a.hunger).toBeGreaterThan(95);
     expect(a.water).toBeGreaterThan(95);
-    expect(feederStock(g, food)).toBe(0);
-    expect(waterStock(g, water)).toBe(0);
-    a.hunger = 20;
     a.water = 20;
-    a.digestion = 0;
+    advance(g, 1);
+    expect(a.water).toBeGreaterThan(99);
+    a.water = 20;
     for (const n of [
       { x: a.x - 1, z: a.z },
       { x: a.x + 1, z: a.z },
@@ -590,28 +501,17 @@ describe("stocked feeders and water troughs have real contents", () => {
       { x: a.x, z: a.z + 1 },
     ])
       g.fences[edgeKey(a, n)] = "fence";
-    g.counters["feeder8z2.greens"] = 1;
-    g.counters["water8z3"] = 1;
     advance(g, 10);
-    expect(a.hunger).toBeLessThan(20);
     expect(a.water).toBeLessThan(20);
   });
-  test("natural water supplies drinking water and stock keys survive land expansion", () => {
+  test("natural water supplies drinking water", () => {
     const g = wealthy(),
       a = g.animals[0];
     a.water = 10;
-    g.counters["water5z2"] = 0;
+    tile(g, { x: 5, z: 2 }).object = "";
     tile(g, { x: 5, z: 2 }).terrain = "water";
     tick(g, 0.25);
     expect(a.water).toBe(100);
-    const before = feederStock(g, { x: 3, z: 2 });
-    expect(expand(g)).toBe(true);
-    expect(feederStock(g, { x: 3, z: 2 })).toBe(before);
-    expect(before).toBe(1);
-    const legacy = structuredClone(g);
-    delete legacy.counters["feeder3z2.greens"];
-    const restored = importGame(exportGame(legacy))!;
-    expect(feederStock(restored, { x: 3, z: 2 })).toBe(0);
   });
 });
 
@@ -642,25 +542,10 @@ test("closing a busy zoo stops admission and all reachable guests walk out", () 
   expect(g.visitors).toHaveLength(0);
 });
 
-test("eating real feeder food completes the feeding tutorial exactly once", () => {
-  const g = createGame();
-  g.animals[0].hunger = 20;
-  tick(g, 0.25);
-  expect(g.animals[0].hunger).toBe(100);
-  expect(g.counters.feed).toBe(1);
-  expect(g.goals).toContain("feed");
-  const coins = g.coins;
-  advance(g, 1);
-  expect(g.counters.feed).toBe(1);
-  expect(g.coins).toBe(coins);
-});
-
 describe("care scheduling respects reachable animals and reserved deliveries", () => {
   test("an unreachable animal does not prevent caring for another animal or cleaning", () => {
     const g = wealthy(),
       blocked = g.animals[0];
-    g.counters["feeder3z2.greens"] = 0;
-    g.counters["water5z2"] = 0;
     blocked.hunger = blocked.water = 5;
     for (const n of [
       { x: 3, z: 2 },
@@ -681,19 +566,16 @@ describe("care scheduling respects reachable animals and reserved deliveries", (
     expect(tile(g, { x: 2, z: 5 }).dirt).toBe(0);
     expect(importGame(exportGame(g))).toEqual(g);
   });
-  test("several carers do not carry duplicate portions to one hungry animal", () => {
+  test("several carers do not both walk to one hungry animal", () => {
     const g = wealthy(),
       a = g.animals[0];
-    g.counters["feeder3z2.greens"] = 0;
     a.hunger = 5;
     expect(hire(g, "keeper")).toBe(true);
     expect(hire(g, "keeper")).toBe(true);
     advance(g, 2);
     expect(g.workers.filter((w) => w.task?.animal === a.id)).toHaveLength(1);
-    expect(g.inventory.greens).toBe(4);
     advance(g, 20);
     expect(a.hunger).toBeGreaterThan(90);
-    expect(g.inventory.greens).toBe(4);
   });
 });
 
@@ -801,7 +683,7 @@ describe("keeper flower planting is paid physical work", () => {
     expect(canPlant(g, p)).toBe(true);
     expect(command(g, "walk", p)).toBe(true);
     expect(command(g, "plant", p)).toBe(true);
-    expect(g.keeper.task?.kind).toBe("plant");
+    expect(g.keeper.task).toMatchObject({ kind: "plant" });
     expect(g.coins).toBe(10 - plantCost);
     expect(tile(g, p).object).toBe("");
     expect(importGame(exportGame(g))).toEqual(g);
@@ -834,9 +716,9 @@ describe("keeper flower planting is paid physical work", () => {
     expect(command(g, "plant", { x: 3, z: 2 })).toBe(false);
     const a = g.animals[0];
     expect(command(g, "feed", a, a.id)).toBe(true);
-    expect(command(g, "plant", p)).toBe(false);
-    expect(g.message).toBe("busy");
-    g.keeper.task = null;
+    expect(command(g, "plant", p)).toBe(true);
+    expect(g.keeper.task).toMatchObject({ kind: "plant" });
+    expect(cancelTask(g)).toBe(true);
     for (const q of points(g))
       if (distance(q, p) === 1) tile(g, q).object = "rock";
     expect(command(g, "plant", p)).toBe(false);
@@ -913,13 +795,9 @@ describe("keeper jobs recover from building changes and explicit stops", () => {
     const g = createGame(),
       a = g.animals[0],
       p = { x: 2, z: 6 };
-    const food = g.inventory.greens;
     expect(command(g, "feed", a, a.id)).toBe(true);
-    expect(g.inventory.greens).toBe(food - 1);
     expect(cancelTask(g)).toBe(true);
-    expect(g.inventory.greens).toBe(food);
     expect(cancelTask(g)).toBe(false);
-    expect(g.inventory.greens).toBe(food);
     tile(g, p).object = "";
     g.coins = 10;
     expect(command(g, "plant", p)).toBe(true);
@@ -932,10 +810,9 @@ describe("keeper jobs recover from building changes and explicit stops", () => {
     expect(g.counters.feed).toBeUndefined();
     expect(g.counters.plant).toBeUndefined();
   });
-  test("an impossible changed route returns carried food and frees the keeper", () => {
+  test("an impossible changed route frees the keeper", () => {
     const g = createGame(),
       a = g.animals[0];
-    const inventory = g.inventory.greens;
     expect(command(g, "feed", a, a.id)).toBe(true);
     for (const n of [
       { x: 0, z: 5 },
@@ -946,7 +823,6 @@ describe("keeper jobs recover from building changes and explicit stops", () => {
       g.fences[edgeKey(g.keeper, n)] = "fence";
     advance(g, 2);
     expect(g.keeper.task).toBeNull();
-    expect(g.inventory.greens).toBe(inventory);
     expect(g.counters.feed).toBeUndefined();
     expect(g.message).toBe("noRoute");
   });

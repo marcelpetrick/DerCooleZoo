@@ -3,12 +3,10 @@
 import type { AbstractEngine } from "@babylonjs/core/Engines/abstractEngine.js";
 import {
   buildings,
-  foods,
   getSpecies,
   roles,
   species,
   terrains,
-  type Food,
   type Role,
   type Terrain,
 } from "./catalog";
@@ -18,27 +16,31 @@ import {
   advance,
   attractiveness,
   build,
-  buyFood,
+  buildEnclosure,
   command,
   cancelTask,
   canRepair,
   canPlant,
   repairPoint,
   createGame,
-  emergencyFood,
   expand,
+  feedCost,
   fence,
-  feederStock,
   friendlyEvents,
-  waterStock,
   goalIds,
   habitat,
   hire,
+  homeCost,
+  homeFor,
+  homeSizes,
+  homeThemes,
+  messAt,
   paint,
   points,
   taskRoute,
   tile,
   welfare,
+  type HomeTheme,
   type Task,
 } from "./game";
 import { t } from "./i18n";
@@ -56,16 +58,30 @@ type Tab =
   | "inspect"
   | "build"
   | "animals"
-  | "food"
   | "staff"
   | "goals"
   | "book"
   | "settings"
   | "help";
 interface Tool {
-  kind: "build" | "terrain" | "animal" | "fence";
+  kind: "build" | "terrain" | "fence" | "enclosure";
   id: string;
 }
+const homeEmoji: Record<HomeTheme, string> = {
+  grass: "🌿",
+  earth: "🟫",
+  sand: "🏜️",
+  water: "🌊",
+  snow: "❄️",
+  tropical: "🌴",
+};
+const foodEmoji = {
+  greens: "🥬",
+  grain: "🌾",
+  fruit: "🍎",
+  fish: "🐟",
+  meat: "🥩",
+};
 export function mount(root: HTMLElement, options: AppOptions = {}) {
   const storage =
     options.storage ??
@@ -84,8 +100,12 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
   if (!existing) {
     try {
       const preference = storage.getItem(languageKey);
-      if (preference === "de" || preference === "en")
-        game.language = preference;
+      game.language =
+        preference === "de" || preference === "en"
+          ? preference
+          : globalThis.navigator?.language?.toLowerCase().startsWith("de")
+            ? "de"
+            : "en";
     } catch {
       // The zoo remains playable when browser storage is unavailable.
     }
@@ -96,7 +116,7 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     selectedAnimalId: number | null = null,
     tool: Tool | null = null,
     fenceStart: Point | null = null,
-    category = "objects",
+    category = "enclosures",
     starter = "rabbit",
     reset = false,
     speed = 1,
@@ -147,6 +167,53 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
   function selectedAnimal() {
     return game.animals.find((animal) => animal.id === selectedAnimalId);
   }
+  let todoCache = { stamp: "", jobs: [] as [string, string][] };
+  /** Chores the keeper could do right now, most urgent first. */
+  function todo(): [string, string][] {
+    const stamp = `${game.language}:${game.revision}:${Math.floor(game.time * 2)}`;
+    if (todoCache.stamp !== stamp) todoCache = { stamp, jobs: findJobs() };
+    return todoCache.jobs;
+  }
+  function findJobs(): [string, string][] {
+    const jobs: [string, string][] = [];
+    const reachable = (kind: Task["kind"], p: Point) =>
+      taskRoute(game, game.keeper, kind, p, true) !== null;
+    if (canRepair(game, repairPoint))
+      jobs.push(["job:repair:3,3", `🔧 ${tr("todo.repair")}`]);
+    const fed = new Set<number>();
+    for (const a of game.animals)
+      if ((a.hunger < 60 || a.water < 60) && !fed.has(a.id)) {
+        for (const mate of game.animals)
+          if (enclosure(mate, game.size, game.fences).some((p) => equal(p, a)))
+            fed.add(mate.id);
+        if (reachable("feed", a))
+          jobs.push([
+            `job:feed:${a.id}`,
+            `${foodEmoji[getSpecies(a.species).food]} ${tr("name." + a.name)} ${tr("todo.feed")}`,
+          ]);
+      }
+    for (const a of game.animals)
+      if (a.joy < 45 && reachable("pet", a))
+        jobs.push([
+          `job:pet:${a.id}`,
+          `💗 ${tr("name." + a.name)} ${tr("todo.pet")}`,
+        ]);
+    const mess = points(game)
+      .filter(
+        (p) => tile(game, p).dirt > 0 || tile(game, p).object === "litter",
+      )
+      .sort((a, b) => distance(game.keeper, a) - distance(game.keeper, b))
+      .find((p) => reachable("clean", p));
+    if (mess)
+      jobs.push([`job:clean:${mess.x},${mess.z}`, `🧹 ${tr("todo.clean")}`]);
+    const weed = points(game)
+      .filter((p) => tile(game, p).object === "weed")
+      .sort((a, b) => distance(game.keeper, a) - distance(game.keeper, b))
+      .find((p) => reachable("clear", p));
+    if (weed)
+      jobs.push([`job:clear:${weed.x},${weed.z}`, `🌱 ${tr("todo.clear")}`]);
+    return jobs.slice(0, 5);
+  }
   function title(key: string, icon: string, subtitle = "") {
     return `<div class="panel-heading"><span class="eyebrow">${tr("app.subtitle")}</span><h2>${icon} ${tr(key)}</h2>${subtitle ? `<p>${subtitle}</p>` : ""}</div>`;
   }
@@ -175,7 +242,6 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
       return `${tr("language." + id)}. ${tr("tip.language")}`;
     if (kind === "starter")
       return `${tr("animal." + id)}. ${tr("bonus." + id)}. ${tr("tip.starter")}`;
-    if (kind === "food") return `${tr("food." + id)}. ${tr("tip.food")}`;
     if (kind === "hire")
       return `${tr("role." + id)}. ${tr("tip.hire")} ${tr("ui.wages")}`;
     if (kind === "tool") {
@@ -186,9 +252,15 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
       if (id === "terrain")
         return `${tr("terrain." + toolId)}. ${tr("tip.paint")}`;
       if (id === "fence") return `${tr("tool." + toolId)}. ${tr("tip.fence")}`;
-      const animal = getSpecies(toolId);
-      return `${tr("animal." + toolId)}. ${tr("tip.adopt")} ${animal.space} ${tr("ui.space")}, ${tr("terrain." + animal.terrain)}, ${tr("food." + animal.food)}. ${animal.cost} ${tr("ui.coins")}.`;
+      const [theme, size] = toolId.split("-");
+      return `${tr("home." + theme)} (${size}×${size}). ${tr("tip.enclosure")} ${homeCost(Number(size))} ${tr("ui.coins")}.`;
     }
+    if (kind === "adopt") {
+      const animal = getSpecies(id);
+      return `${tr("animal." + id)}. ${tr("tip.adopt")} ${tr("home." + animal.terrain)}, ${tr("food." + animal.food)}. ${animal.cost} ${tr("ui.coins")}.`;
+    }
+    if (kind === "job") return tr("tip." + id);
+    if (kind === "pick") return tr("tip.pick");
     if (
       (kind === "repairStarter" || (kind === "care" && id === "repair")) &&
       !canRepair(game, repairPoint)
@@ -230,7 +302,6 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
         ["inspect", "🧑‍🌾"],
         ["build", "🔨"],
         ["animals", "🐾"],
-        ["food", "🥕"],
         ["staff", "👥"],
         ["goals", "✨"],
         ["book", "📖"],
@@ -284,90 +355,47 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     if (tab === "inspect") {
       const a = selectedAnimal();
       panel.innerHTML = title("ui.keeper", "🧑‍🌾", tr("ui.welcome"));
-      if (game.keeper.task)
-        panel.innerHTML += actionButton(
-          "cancelTask",
-          `✋ ${tr("ui.cancelTask")}`,
-          'class="wide"',
-        );
-      if (!a)
-        panel.innerHTML += `<div class="keeper-card"><span>🧑‍🌾</span><div><strong>${tr("ui.keeper")}</strong><small>${tr(game.keeper.task ? "ui.working" : "ui.ready")}</small></div></div>`;
+      panel.innerHTML += `<div class="keeper-card"><span>🧑‍🌾</span><div><strong>${tr("ui.keeper")}</strong><small>${game.keeper.task ? tr("message." + game.keeper.task.kind) : tr("ui.ready")}</small></div>${game.keeper.task ? actionButton("cancelTask", `✋ ${tr("ui.cancelTask")}`) : ""}</div><div class="friends" role="group" aria-label="${tr("ui.myAnimals")}">${game.animals.map((friend) => actionButton(`pick:${friend.id}`, `<span>${getSpecies(friend.species).emoji}</span><small>${tr("name." + friend.name)}</small>`, `aria-pressed="${friend.id === selectedAnimalId}"`)).join("")}</div>`;
       if (a) {
         const s = getSpecies(a.species),
           h = habitat(game, a);
-        const dirty = enclosure(a, game.size, game.fences).some(
-          (point) =>
-            tile(game, point).dirt > 0 || tile(game, point).object === "litter",
-        );
-        const feeder = enclosure(a, game.size, game.fences).find(
-          (p) => tile(game, p).object === "feeder",
-        );
-        panel.innerHTML += `<div class="care-hint"><p>${a.hunger < 70 ? tr(game.inventory[s.food] > 0 ? "hint.hungry" : "hint.noFood") : tr("hint.foodNeeded")} <strong>${tr("food." + s.food)}</strong> · ${game.inventory[s.food]} ${tr("ui.inventory")}</p><div class="action-grid">${game.inventory[s.food] > 0 ? actionButton("care:feed", `${{ greens: "🥬", grain: "🌾", fruit: "🍎", fish: "🐟", meat: "🥩" }[s.food]} ${tr("ui.feed")}`, `title="${tr("ui.feedTooltip")}"`) : actionButton("food:" + s.food, `${tr("ui.buy")} ${tr("food." + s.food)} · 2 🪙`)}${feeder ? actionButton("refillAnimal", `🥣 ${tr("ui.refillFeeder")} · ${feederStock(game, feeder, s.food)}`) : actionButton("emergency", tr("ui.emergencyFood"))}</div><p>${a.water < 70 ? tr("hint.thirsty") : ""}</p>${actionButton("care:water", `💧 ${tr("ui.water")}`, 'class="wide"')}${game.inventory[s.food] === 0 && feeder ? actionButton("emergency", tr("ui.emergencyFood"), 'class="wide"') : ""}</div><div class="animal-profile"><span>${s.emoji}</span><h3>${tr("name." + a.name)}</h3><p>${tr("animal." + s.id)} · ${tr("personality." + a.personality)}</p><label>${tr("ui.welfare")} <meter min="0" max="100" value="${welfare(game, a)}"></meter></label><div class="needs">${Object.entries(
+        const dirty = messAt(game, a).length > 0;
+        const need = (icon: string, key: string, value: number) =>
+          `<div class="need-meter ${value < 50 ? "low" : ""}"><span>${icon}</span><small>${tr(key)}</small><meter min="0" max="100" low="35" high="70" optimum="100" value="${Math.round(value)}"></meter></div>`;
+        panel.innerHTML += `<div class="animal-profile"><span>${s.emoji}</span><h3>${tr("name." + a.name)}</h3><p>${tr("animal." + s.id)} · ${tr("personality." + a.personality)}</p><div class="need-meters">${need("🍽️", "ui.hunger", a.hunger)}${need("💧", "ui.thirst", a.water)}${need("💗", "ui.joy", a.joy)}${need("🧹", "ui.tidy", dirty ? 20 : 100)}</div></div><div class="care-buttons">${actionButton("care:feed", `<span>${foodEmoji[s.food]}</span>${tr("ui.feed")}<small>${game.coins >= feedCost ? feedCost + " 🪙" : tr("ui.free")}</small>`, 'class="big-care"')}${actionButton("care:pet", `<span>💗</span>${tr("ui.pet")}`, 'class="big-care"')}${actionButton("care:clean", `<span>🧹</span>${tr("ui.clean")}`, `class="big-care" ${dirty ? "" : "disabled"}`)}</div><p class="note">${tr("hint.feedAll")}</p><label class="welfare">${tr("ui.welfare")} <meter min="0" max="100" value="${welfare(game, a)}"></meter></label><div class="needs">${Object.entries(
           h,
         )
           .map(
             ([id, ok]) =>
               `<span class="${ok ? "ok" : "warn"}">${ok ? "✓" : "○"} ${tr("ui." + id)}</span>`,
           )
-          .join(
-            "",
-          )}</div></div><div class="action-grid care-actions">${actionButton("care:pet", `💗 ${tr("ui.pet")}`)}${actionButton("care:clean", `🧹 ${tr("ui.clean")}`, dirty ? "" : "disabled")}</div>`;
+          .join("")}</div>`;
       } else if (selected) {
         const object = tile(game, selected).object;
-        panel.innerHTML += `<div class="selection ${["feeder", "trough"].includes(object) ? "care-object" : ""}"><h3>${object ? tr("building." + object) : tr("terrain." + tile(game, selected).terrain)}</h3><p>${selected.x + 1} · ${selected.z + 1}</p><div class="action-grid">${actionButton("care:walk", `👣 ${tr("ui.walk")}`)}${canPlant(game, selected) ? actionButton("care:plant", `🌼 ${tr("ui.plant")} · 2 🪙`, game.coins < 2 ? "disabled" : "") : ""}${["weed", "rock", "stump", "tree"].includes(object) ? actionButton("care:clear", `🌱 ${tr("ui.clear")}`) : ""}${tile(game, selected).dirt > 0 || object === "litter" ? actionButton("care:clean", `🧹 ${tr("ui.clean")}`) : ""}${canRepair(game, selected) ? actionButton("care:repair", `🔧 ${tr("ui.repair")}`) : ""}</div></div>`;
-      } else
-        panel.innerHTML += `<div class="intro-steps"><h3>${tr("ui.start")}</h3><p>1. ${tr("goal.clear")}</p><p>2. ${tr("goal.repair")}</p><p>3. ${tr("goal.feed")}</p><p>4. ${tr("goal.open")}</p></div><div class="action-grid">${actionButton("findAnimal", `🐰 ${tr("ui.animals")}`)}${actionButton("findWeed", `🌱 ${tr("ui.clear")}`)}${actionButton("repairStarter", `🔧 ${tr("ui.repair")}`, canRepair(game, repairPoint) ? "" : "disabled")}</div>`;
-      if (
-        selected &&
-        !a &&
-        ["feeder", "trough"].includes(tile(game, selected).object)
-      ) {
-        const isFeeder = tile(game, selected).object === "feeder";
-        const area = enclosure(selected, game.size, game.fences);
-        const resident = game.animals.find((animal) =>
-          area.some((point) => equal(point, animal)),
-        );
-        const food = resident ? getSpecies(resident.species).food : "greens";
-        panel.innerHTML += `<div class="care-hint"><p>${tr(isFeeder ? "hint.feeder" : "hint.trough")}</p><strong>${tr("ui.stock")}: ${
-          isFeeder
-            ? foods
-                .filter((food) => feederStock(game, selected!, food) > 0)
-                .map(
-                  (food) =>
-                    `${tr("food." + food)} ${feederStock(game, selected!, food)}`,
-                )
-                .join(" · ") || tr("ui.empty")
-            : waterStock(game, selected)
-        } ${isFeeder ? "" : tr("terrain.water")}</strong><div class="action-grid">${actionButton(isFeeder ? "care:refill" : "care:refillWater", tr(isFeeder ? "ui.refillFeeder" : "ui.refillWater"))}${isFeeder ? actionButton("food:" + food, `${tr("ui.buy")} ${tr("food." + food)} · 2 🪙`) : ""}</div>${isFeeder ? actionButton("emergency", tr("ui.emergencyFood"), 'class="wide"') : ""}</div>`;
+        panel.innerHTML += `<div class="selection"><h3>${object ? tr("building." + object) : tr("terrain." + tile(game, selected).terrain)}</h3>${["feeder", "trough"].includes(object) ? `<p>${tr(object === "feeder" ? "hint.feeder" : "hint.trough")}</p>` : ""}<div class="action-grid">${actionButton("care:walk", `👣 ${tr("ui.walk")}`)}${canPlant(game, selected) ? actionButton("care:plant", `🌼 ${tr("ui.plant")} · 2 🪙`, game.coins < 2 ? "disabled" : "") : ""}${["weed", "rock", "stump", "tree"].includes(object) ? actionButton("care:clear", `🌱 ${tr("ui.clear")}`) : ""}${messAt(game, selected).length ? actionButton("care:clean", `🧹 ${tr("ui.clean")}`) : ""}${canRepair(game, selected) ? actionButton("care:repair", `🔧 ${tr("ui.repair")}`) : ""}</div></div>`;
       }
-      panel.innerHTML += actionButton(
-        "findWater",
-        `💧 ${tr("ui.findWater")}`,
-        'class="wide"',
-      );
-      panel.innerHTML += actionButton(
-        "findFeeder",
-        `🥣 ${tr("ui.findFeeder")}`,
-        'class="wide"',
-      );
-      panel.innerHTML += actionButton(
-        "findDirt",
-        `🧹 ${tr("ui.findDirt")}`,
-        'class="wide"',
-      );
-      if (selected)
-        panel.innerHTML += actionButton(
-          "findAnimal",
-          `🐾 ${tr("ui.animals")}`,
-          'class="wide"',
-        );
+      const jobs = todo();
+      panel.innerHTML += `<div class="todo"><h3>📋 ${tr("ui.todo")}</h3>${jobs.length ? jobs.map(([action, label]) => actionButton(action, label, 'class="todo-item"')).join("") : `<p>${tr("ui.allDone")}</p>`}</div>`;
       panel.innerHTML += `<button class="primary gate-button" data-action="gate">${game.open ? "🚪 " + tr("ui.close") : "🎟️ " + tr("ui.open")}</button><div class="ticket"><label for="ticket">${tr("ui.ticket")} <strong id="ticket-price">${game.ticket} 🪙</strong></label><input id="ticket" data-input="ticket" type="range" min="1" max="20" value="${game.ticket}"/><p id="ticket-feedback">${tr(game.ticket < attractiveness(game) ? "ui.priceCheap" : game.ticket === attractiveness(game) ? "ui.priceFair" : game.ticket <= attractiveness(game) * 1.5 ? "ui.priceHigh" : "ui.priceExpensive")} · ${tr("ui.recommended")}: ${attractiveness(game)} 🪙</p></div>`;
     }
     if (tab === "build") {
       panel.innerHTML =
         title("ui.build", "🔨", tr("ui.chooseTile")) +
-        `<div class="chips">${["objects", "paths", "shops", "playground", "habitat", "fences"].map((id) => actionButton("category:" + id, tr("menu." + id), `class="${category === id ? "chosen" : ""}"`)).join("")}</div><div class="catalog">`;
-      if (category === "habitat")
+        `<div class="chips">${["enclosures", "objects", "paths", "shops", "playground", "habitat", "fences"].map((id) => actionButton("category:" + id, tr("menu." + id), `class="${category === id ? "chosen" : ""}"`)).join("")}</div><div class="catalog">`;
+      if (category === "enclosures")
+        panel.innerHTML += homeThemes
+          .flatMap((theme) =>
+            homeSizes.map((size) =>
+              card(
+                homeEmoji[theme],
+                `${tr("home." + theme)} · ${tr(size === 3 ? "ui.small" : "ui.big")}`,
+                `tool:enclosure:${theme}-${size}`,
+                `${size}×${size} · ${homeCost(size)} 🪙`,
+              ),
+            ),
+          )
+          .join("");
+      else if (category === "habitat")
         panel.innerHTML += terrains
           .map((id) =>
             card("🟩", tr("terrain." + id), "tool:terrain:" + id, "1 🪙"),
@@ -409,12 +437,8 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     }
     if (tab === "animals")
       panel.innerHTML =
-        title("ui.animals", "🐾", tr("ui.enclosure")) +
-        `<div class="catalog">${species.map((s) => card(s.emoji, tr("animal." + s.id), "tool:animal:" + s.id, `${s.cost} 🪙 · ${s.tier} ★`, s.tier > game.stars)).join("")}</div>`;
-    if (tab === "food")
-      panel.innerHTML =
-        title("ui.food", "🥕", tr("ui.foodHint")) +
-        `<div class="catalog">${foods.map((id) => card({ greens: "🥬", grain: "🌾", fruit: "🍎", fish: "🐟", meat: "🥩" }[id], tr("food." + id), "food:" + id, `${game.inventory[id]} ${tr("ui.inventory")} · +${id === "greens" && game.animals.some((animal) => animal.species === "rabbit") ? 6 : 5} / 2 🪙`)).join("")}</div><div class="note">${tr("ui.foodSupply")}</div>${actionButton("emergency", `💚 ${tr("ui.emergencyFood")}`, 'class="wide"')}`;
+        title("ui.animals", "🐾", tr("ui.adoptHint")) +
+        `<div class="catalog">${species.map((s) => card(s.emoji, tr("animal." + s.id), "adopt:" + s.id, s.tier > game.stars ? `🔒 ${s.tier} ★` : `${s.cost} 🪙 · ${homeEmoji[s.terrain as HomeTheme]} ${homeFor(game, s.id) ? tr("ui.homeReady") : tr("ui.homeNeeded")}`, s.tier > game.stars)).join("")}</div>`;
     if (tab === "staff")
       panel.innerHTML =
         title("ui.staff", "👥") +
@@ -530,23 +554,16 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     }
 
     const selectedFriend = selectedAnimal();
-    const food = selectedFriend
-      ? getSpecies(selectedFriend.species).food
-      : undefined;
-    const careStatus = selectedFriend
-      ? `${selectedFriend.id}:${selectedFriend.hunger < 70}:${selectedFriend.water < 70}:${game.inventory[food!]}:${enclosure(
-          selectedFriend,
-          game.size,
-          game.fences,
-        )
-          .filter((point) => tile(game, point).object === "feeder")
-          .map((point) => feederStock(game, point, food))
-          .join(
-            ",",
-          )}:${Object.values(habitat(game, selectedFriend)).join(",")}:${enclosure(selectedFriend, game.size, game.fences).some((point) => tile(game, point).dirt > 0 || tile(game, point).object === "litter")}`
-      : selected
-        ? `${feederStock(game, selected)}:${waterStock(game, selected)}:${tile(game, selected).object}:${tile(game, selected).dirt}:${canRepair(game, selected)}:${game.coins >= 2}:${canPlant(game, selected)}`
-        : "";
+    const level = (value: number) => Math.floor(value / 10);
+    const careStatus = `${todo()
+      .map(([action]) => action)
+      .join()}|${
+      selectedFriend
+        ? `${selectedFriend.id}:${level(selectedFriend.hunger)}:${level(selectedFriend.water)}:${level(selectedFriend.joy)}:${game.coins >= feedCost}:${Object.values(habitat(game, selectedFriend)).join(",")}:${messAt(game, selectedFriend).length}`
+        : selected
+          ? `${tile(game, selected).object}:${tile(game, selected).dirt}:${canRepair(game, selected)}:${game.coins >= 2}:${canPlant(game, selected)}`
+          : ""
+    }`;
     if (tab === "inspect" && careStatus !== panelCareStatus) renderPanel();
     panelCareStatus = careStatus;
     const goalStatus = `${game.goals.join(":")}:${game.income.tickets}:${game.income.donations}:${game.income.sales}`;
@@ -557,9 +574,6 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
       panelTask = game.keeper.task;
       panelStars = game.stars;
     }
-    const meter = root.querySelector<HTMLMeterElement>("meter"),
-      animal = selectedAnimal();
-    if (meter && animal) meter.value = welfare(game, animal);
     const avg = Math.round(
       game.animals.reduce((sum, a) => sum + welfare(game, a), 0) /
         game.animals.length,
@@ -567,7 +581,7 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     root.querySelector("#stats")!.innerHTML =
       `<div class="stat coins"><span>🪙</span><strong data-testid="coins">${Math.floor(game.coins)}</strong><small>${tr("ui.coins")}</small></div><div class="stat"><span>★</span><strong>${"★".repeat(game.stars)}${"☆".repeat(5 - game.stars)}</strong><small>${tr("ui.stars")}</small></div><div class="stat"><span>👋</span><strong data-testid="visitors">${game.visitors.length}</strong><small>${tr("ui.visitors")}</small></div><div class="stat"><span>💚</span><strong>${avg}%</strong><small>${tr("ui.welfare")}</small></div>`;
     root.querySelector("#world-hint")!.textContent = tool
-      ? `${tr("ui.chooseTile")} · ${tr((tool.kind === "animal" ? "animal." : tool.kind === "terrain" ? "terrain." : tool.kind === "fence" ? "tool." : "building.") + tool.id)}`
+      ? `${tr("ui.chooseTile")} · ${tr((tool.kind === "enclosure" ? "home." : tool.kind === "terrain" ? "terrain." : tool.kind === "fence" ? "tool." : "building.") + tool.id.split("-")[0])}`
       : tr(game.open ? "ui.gateOpen" : "ui.gateClosed");
     root.querySelector("#keeper-status")!.textContent =
       `🧑‍🌾 ${tr("ui.keeper")} · ${game.keeper.task ? tr("message." + game.keeper.task.kind) : tr("ui.ready")}${game.keeper.task?.carrying ? " 🥕" : ""}`;
@@ -628,9 +642,14 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
           ?.id ?? null);
     if (tool) {
       if (tool.kind === "build") build(game, tool.id, p);
-      if (tool.kind === "terrain") paint(game, tool.id as Terrain, p);
-      if (tool.kind === "animal") adopt(game, tool.id, p);
-      if (tool.kind === "fence") {
+      else if (tool.kind === "terrain") paint(game, tool.id as Terrain, p);
+      else if (tool.kind === "enclosure") {
+        const [theme, size] = tool.id.split("-");
+        if (buildEnclosure(game, theme as HomeTheme, Number(size), p)) {
+          tool = null;
+          tab = "animals";
+        }
+      } else if (tool.kind === "fence") {
         if (fenceStart) {
           fence(
             game,
@@ -647,8 +666,17 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
       }
     } else {
       tab = "inspect";
-      if (!selectedAnimal() && !tile(game, p).object && !tile(game, p).dirt)
-        command(game, "walk", p);
+      const object = tile(game, p).object;
+      // Clicking a chore starts it at once; only animals open a choice.
+      if (!selectedAnimal()) {
+        if (canRepair(game, p)) command(game, "repair", p);
+        else if (["weed", "rock", "stump"].includes(object))
+          command(game, "clear", p);
+        else if (tile(game, p).dirt > 0 || object === "litter")
+          command(game, "clean", p);
+        // A plain click never interrupts a chore that is already under way.
+        else if (!object && !game.keeper.task) command(game, "walk", p);
+      }
     }
     cue(game.message);
     update();
@@ -668,13 +696,7 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     } else if (kind === "care" && selected) {
       const animal = selectedAnimal();
       const dirty =
-        animal && id === "clean"
-          ? enclosure(animal, game.size, game.fences).find(
-              (point) =>
-                tile(game, point).dirt > 0 ||
-                tile(game, point).object === "litter",
-            )
-          : undefined;
+        animal && id === "clean" ? messAt(game, animal)[0] : undefined;
       command(
         game,
         id as Task["kind"],
@@ -682,8 +704,32 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
         dirty ? 0 : (animal?.id ?? 0),
       );
     } else if (kind === "cancelTask") cancelTask(game);
-    else if (kind === "food") buyFood(game, id as Food);
-    else if (kind === "hire") hire(game, id as Role);
+    else if (kind === "adopt") {
+      if (adopt(game, id)) {
+        const friend = game.animals[game.animals.length - 1];
+        selected = { x: friend.x, z: friend.z };
+        selectedAnimalId = friend.id;
+        tab = "inspect";
+      } else if (game.message === "needEnclosure") {
+        tab = "build";
+        category = "enclosures";
+        tool = { kind: "enclosure", id: getSpecies(id).terrain + "-4" };
+      }
+    } else if (kind === "pick") {
+      const friend = game.animals.find((a) => a.id === Number(id));
+      if (friend) {
+        selected = { x: friend.x, z: friend.z };
+        selectedAnimalId = friend.id;
+      }
+    } else if (kind === "job") {
+      selectedAnimalId = null;
+      const animal = game.animals.find((a) => a.id === Number(toolId));
+      const [x, z] = toolId.split(",").map(Number);
+      const at = animal ?? { x, z };
+      selectedAnimalId = animal?.id ?? null;
+      selected = { x: at.x, z: at.z };
+      command(game, id as Task["kind"], at, animal?.id ?? 0);
+    } else if (kind === "hire") hire(game, id as Role);
     else if (kind === "starter") {
       starter = id;
       showStarter();
@@ -706,61 +752,7 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     } else if (kind === "gate") {
       game.open = !game.open;
       game.message = game.open ? "gateOpen" : "gateClosed";
-    } else if (kind === "findAnimal") {
-      selected = { x: game.animals[0].x, z: game.animals[0].z };
-      selectedAnimalId = game.animals[0].id;
-    } else if (kind === "findWater") {
-      selectedAnimalId = null;
-      selected =
-        points(game)
-          .filter((point) => tile(game, point).object === "trough")
-          .sort(
-            (a, b) => distance(game.keeper, a) - distance(game.keeper, b),
-          )[0] ?? null;
-      tab = "inspect";
-    } else if (kind === "findFeeder") {
-      selectedAnimalId = null;
-      selected =
-        points(game)
-          .filter((point) => tile(game, point).object === "feeder")
-          .sort(
-            (a, b) => distance(game.keeper, a) - distance(game.keeper, b),
-          )[0] ?? null;
-      tab = "inspect";
-    } else if (kind === "refillAnimal") {
-      const animal = selectedAnimal();
-      const feeder = animal
-        ? enclosure(animal, game.size, game.fences).find(
-            (point) => tile(game, point).object === "feeder",
-          )
-        : undefined;
-      if (animal && feeder) command(game, "refill", feeder, animal.id);
-    } else if (kind === "findDirt") {
-      selectedAnimalId = null;
-      selected =
-        points(game)
-          .filter(
-            (p) => tile(game, p).dirt > 0 || tile(game, p).object === "litter",
-          )
-          .sort((a, b) => distance(game.keeper, a) - distance(game.keeper, b))
-          .find((p) => taskRoute(game, game.keeper, "clean", p) !== null) ??
-        null;
-      tab = "inspect";
-    } else if (kind === "findWeed") {
-      selectedAnimalId = null;
-      selected =
-        points(game)
-          .filter((p) => tile(game, p).object === "weed")
-          .sort((a, b) => distance(game.keeper, a) - distance(game.keeper, b))
-          .find((p) => taskRoute(game, game.keeper, "clear", p) !== null) ??
-        null;
-    } else if (kind === "repairStarter") {
-      selectedAnimalId = null;
-      const location = { ...repairPoint };
-      selected = location;
-      if (canRepair(game, location)) command(game, "repair", location);
     } else if (kind === "expand") expand(game);
-    else if (kind === "emergency") emergencyFood(game);
     else if (kind === "pause") game.paused = !game.paused;
     else if (kind === "speed")
       speed = speed === 1 ? 0.5 : speed === 0.5 ? 2 : 1;
@@ -821,15 +813,19 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
       handleAction(action);
       const [kind, id] = action.split(":");
       cue(
-        ["noCoins", "noFood", "noRoute", "locked", "occupied", "busy"].includes(
-          game.message,
-        )
+        [
+          "noCoins",
+          "noRoute",
+          "noSpace",
+          "needEnclosure",
+          "locked",
+          "occupied",
+          "busy",
+        ].includes(game.message)
           ? "error"
           : kind === "care"
             ? id
-            : kind === "food"
-              ? "buy"
-              : kind,
+            : kind,
       );
     }
   }

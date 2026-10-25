@@ -17,8 +17,6 @@ import {
   advance,
   createGame,
   expand,
-  feederStock,
-  waterStock,
   tile,
   type Visitor,
   type Worker,
@@ -420,7 +418,6 @@ test("visitors show food, sleepy Z, play and happiness bubbles; keepers display 
   ).toBe(false);
   for (const kind of [
     "feed",
-    "water",
     "pet",
     "clean",
     "clear",
@@ -829,32 +826,20 @@ test("hungry animals ask for their actual food while hungry guests ask for popco
   expect(renderer.scene.getMeshByName("need-fruit")!.isEnabled()).toBe(true);
 });
 
-test("food and water geometry reflects actual facility supplies and empty bowls show refill hints", () => {
+test("food bowls show what their residents eat and troughs always hold water", () => {
   const { game, renderer } = setup();
-  const feeder = { x: 3, z: 2 };
-  const trough = { x: 5, z: 2 };
-  expect(feederStock(game, feeder)).toBeGreaterThan(0);
-  expect(waterStock(game, trough)).toBeGreaterThan(0);
   renderer.render();
   expect(renderer.scene.getTransformNodeByName("feeder-serving")).toBeTruthy();
-  expect(renderer.scene.getTransformNodeByName("empty-feeder")).toBeNull();
-  expect(renderer.scene.getTransformNodeByName("empty-trough")).toBeNull();
-  game.counters = {};
-  renderer.rebuild();
-  expect(renderer.scene.getTransformNodeByName("feeder-serving")).toBeNull();
-  expect(renderer.scene.getTransformNodeByName("empty-feeder")).toBeTruthy();
-  expect(renderer.scene.getTransformNodeByName("empty-trough")).toBeTruthy();
-  expect(renderer.scene.getMeshByName("feeding-content")).toBeNull();
+  expect(renderer.scene.getMeshByName("feeding-content")).toBeTruthy();
   expect(
-    renderer.scene.getMeshByName("empty-feeder-need-food")!.metadata.tile,
-  ).toEqual(feeder);
-  expect(
-    renderer.scene.getMeshByName("empty-trough-need-water")!.metadata.tile,
-  ).toEqual(trough);
-  game.counters["feeder3z2.fruit"] = 1;
+    renderer.scene.getMeshByName("feeder-need-food")!.metadata.tile,
+  ).toEqual({ x: 3, z: 2 });
+  game.animals[0].species = "raccoon";
   renderer.rebuild();
   expect(renderer.scene.getMeshByName("feeder-need-fruit")).toBeTruthy();
-  expect(renderer.scene.getTransformNodeByName("empty-feeder")).toBeNull();
+  game.animals = [];
+  renderer.rebuild();
+  expect(renderer.scene.getTransformNodeByName("feeder-serving")).toBeNull();
 });
 
 test("an adopted animal emerges where its delivery crate unloads without shrinking existing animals", () => {

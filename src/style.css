@@ -1035,3 +1035,115 @@ button:active {
     display: none;
   }
 }
+.keeper-card button {
+  margin-left: auto;
+  font-size: 11px;
+  padding: 8px 10px;
+}
+.need-meters {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+.need-meter {
+  display: grid;
+  justify-items: center;
+  gap: 2px;
+  padding: 6px 2px;
+  border-radius: 12px;
+  background: #f2f6e8;
+}
+.need-meter > span {
+  font-size: 20px;
+}
+.need-meter small {
+  font-size: 10px;
+}
+.need-meter meter {
+  width: 90%;
+}
+.need-meter.low {
+  background: #fde8dc;
+  animation: need-pulse 1.2s ease-in-out infinite;
+}
+@keyframes need-pulse {
+  50% {
+    transform: scale(1.06);
+  }
+}
+.care-buttons {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  margin: 10px 0 6px;
+}
+.big-care {
+  display: grid;
+  justify-items: center;
+  gap: 3px;
+  padding: 12px 4px;
+  font-size: 12px;
+  font-weight: 700;
+  border-radius: 16px;
+}
+.big-care > span {
+  font-size: 28px;
+}
+.big-care small {
+  font-size: 10px;
+  font-weight: 500;
+}
+.welfare {
+  display: block;
+  font-size: 12px;
+  margin-top: 6px;
+}
+.todo {
+  margin: 14px 0;
+  display: grid;
+  gap: 6px;
+}
+.todo h3 {
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+.todo p {
+  font-size: 12px;
+}
+.todo-item {
+  text-align: left;
+  font-size: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+}
+.friends {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: -8px 0 14px;
+}
+.friends button {
+  display: grid;
+  justify-items: center;
+  padding: 6px 8px;
+  border-radius: 14px;
+  min-width: 56px;
+}
+.friends button span {
+  font-size: 22px;
+}
+.friends button small {
+  font-size: 10px;
+}
+.friends button[aria-pressed="true"] {
+  border-color: #7fae76;
+  background: #e4f2e1;
+}
+/* With an animal selected, its care buttons matter more than the heading. */
+.panel:has(.animal-profile) .panel-heading {
+  display: none;
+}
+.panel:has(.animal-profile) .animal-profile > span {
+  font-size: 34px;
+}

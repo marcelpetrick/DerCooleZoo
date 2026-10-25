@@ -13,10 +13,8 @@ import {
   adopt,
   advance,
   attractiveness,
-  buyFood,
   command,
   createGame,
-  emergencyFood,
   expand,
   fence,
   goalIds,
@@ -97,7 +95,7 @@ describe("grid and bounded pathfinding", () => {
   });
 });
 describe("friendly starting economy and catalog", () => {
-  test("all starters have one animal, no coins, safe paths and food", () => {
+  test("all starters have one animal, no coins and safe paths", () => {
     for (const id of [
       "rabbit",
       "goat",
@@ -109,24 +107,16 @@ describe("friendly starting economy and catalog", () => {
       const g = createGame(id);
       expect(g.coins).toBe(0);
       expect(g.animals).toHaveLength(1);
-      expect(g.inventory.greens).toBeGreaterThan(0);
       expect(g.open).toBe(false);
     }
     expect(species).toHaveLength(20);
     expect(terrains).toHaveLength(7);
   });
-  test("currency never goes negative and food purchase does not feed remotely", () => {
+  test("currency never goes negative", () => {
     const g = createGame();
     expect(pay(g, 1)).toBe(false);
-    expect(buyFood(g, "greens")).toBe(false);
-    g.coins = 2;
-    expect(buyFood(g, "greens")).toBe(true);
-    expect(g.inventory.greens).toBe(11);
-    expect(g.animals[0].hunger).toBe(70);
-    expect(buyFood(g, "bad" as never)).toBe(false);
-    g.inventory.greens = 0;
-    emergencyFood(g);
-    expect(g.inventory.greens).toBe(2);
+    expect(g.message).toBe("noCoins");
+    expect(g.coins).toBe(0);
   });
   test("deterministic randomness", () => {
     expect(random(createGame())).toBe(random(createGame()));
@@ -163,15 +153,13 @@ describe("friendly starting economy and catalog", () => {
   });
 });
 describe("keeper physically delivers food and clears droppings", () => {
-  test("walks carrying purchased food, feeds only on arrival and later produces removable poop", () => {
+  test("walks carrying food, feeds only on arrival and later produces removable poop", () => {
     const g = createGame(),
       a = g.animals[0],
       h = a.hunger;
     expect(command(g, "feed", a, a.id)).toBe(true);
     expect(g.keeper.task?.carrying).toBe("greens");
-    expect(g.inventory.greens).toBe(4);
     expect(a.hunger).toBe(h);
-    expect(command(g, "pet", a, a.id)).toBe(false);
     advance(g, 6);
     expect(g.keeper.task).toBeNull();
     expect(a.hunger).toBeGreaterThan(95);
@@ -184,12 +172,12 @@ describe("keeper physically delivers food and clears droppings", () => {
   test("water, affection, weeds, rocks, stumps, litter and repairs complete", () => {
     const g = rich(),
       a = g.animals[0];
-    for (const kind of ["water", "pet"] as const) {
+    for (const kind of ["feed", "pet"] as const) {
       a.water = 1;
       a.joy = 1;
       command(g, kind, a, a.id);
       advance(g, 20);
-      expect(kind === "water" ? a.water : a.joy).toBeGreaterThan(95);
+      expect(kind === "feed" ? a.water : a.joy).toBeGreaterThan(95);
     }
     for (const object of ["weed", "rock", "stump"]) {
       const q = { x: 2, z: 5 };
@@ -209,17 +197,15 @@ describe("keeper physically delivers food and clears droppings", () => {
     advance(g, 10);
     expect(g.counters.repaired).toBe(1);
   });
-  test("rejects invalid, unreachable and foodless tasks without losing inventory", () => {
+  test("rejects invalid and unreachable tasks", () => {
     const g = createGame(),
       a = g.animals[0];
     expect(command(g, "feed", p, 999)).toBe(false);
     expect(command(g, "clean", { x: -1, z: 0 })).toBe(false);
-    g.inventory.greens = 0;
-    expect(command(g, "feed", a, a.id)).toBe(false);
-    expect(g.message).toBe("noFood");
     g.fences[edgeKey({ x: 4, z: 3 }, { x: 4, z: 4 })] = "fence";
-    expect(command(g, "water", a, a.id)).toBe(false);
+    expect(command(g, "feed", a, a.id)).toBe(false);
     expect(g.message).toBe("noRoute");
+    expect(g.keeper.task).toBeNull();
   });
 });
 describe("construction and progression", () => {
@@ -455,7 +441,6 @@ describe("simulation regression safeguards", () => {
     expect(g.coins).toBe(coins);
     const a = g.animals[0];
     expect(command(g, "feed", { x: 1, z: 5 }, a.id)).toBe(false);
-    expect(g.inventory.greens).toBe(5);
     for (const n of [-1, NaN, Infinity]) advance(g, n);
     expect(g.time).toBe(0);
   });
@@ -538,19 +523,13 @@ describe("simulation regression safeguards", () => {
   });
 });
 
-test("a carer still brings water when animal food is out of stock", () => {
+test("a hired carer feeds and waters a hungry pen by itself", () => {
   const g = rich();
   hire(g, "keeper");
-  g.inventory.greens = 0;
-  g.counters["feeder3z2.greens"] = 0;
   g.animals[0].hunger = 5;
   g.animals[0].water = 1;
   advance(g, 40);
   expect(g.animals[0].water).toBeGreaterThan(65);
-  expect(g.inventory.greens).toBe(0);
-  expect(g.animals[0].hunger).toBeLessThan(5);
-  buyFood(g, "greens");
-  advance(g, 40);
   expect(g.animals[0].hunger).toBeGreaterThan(65);
 });
 

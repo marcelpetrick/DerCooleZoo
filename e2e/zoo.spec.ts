@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2026 Marcel Petrick
 // SPDX-License-Identifier: GPL-3.0-or-later
 import { expect, test } from "@playwright/test";
-test("a child can choose an animal, deliver food, clean up, open the zoo and save", async ({
+test("a child can choose an animal, feed it, clean up, open the zoo and save", async ({
   page,
 }, testInfo) => {
   const errors: string[] = [];
@@ -17,7 +17,7 @@ test("a child can choose an animal, deliver food, clean up, open the zoo and sav
     timeout: 35000,
   });
   await page.locator('[data-action="tab:inspect"]').click();
-  await page.locator('[data-action="findAnimal"]').first().click();
+  await page.locator(".friends button").first().click();
   await expect(page.locator(".animal-profile")).toContainText("goat");
   await page.locator('[data-action="care:feed"]').click();
   await expect(page.locator("#keeper-status")).toContainText(/food/i);
@@ -41,14 +41,10 @@ test("a child can choose an animal, deliver food, clean up, open the zoo and sav
     undefined,
     { timeout: 30000 },
   );
-  await page.locator('[data-action="findDirt"]').click();
-  await page.locator('[data-action="care:clean"]').click();
+  await page.locator('[data-action^="job:clean:"]').click();
   await expect(page.locator("#keeper-status")).toContainText("Ready", {
     timeout: 12000,
   });
-  await page.locator('[data-action="tab:food"]').click();
-  await page.locator('[data-action="food:greens"]').click();
-  await expect(page.getByRole("status")).toContainText(/food/i);
   await page.locator('[data-action="settings"]').click();
   await page.locator('[data-action="save"]').click();
   await expect(page.locator("#save-status")).toContainText(/saved/i);
@@ -59,7 +55,7 @@ test("a child can choose an animal, deliver food, clean up, open the zoo and sav
   expect(saved.counters.clean).toBeGreaterThan(0);
   await page.reload();
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.locator('[data-action="findAnimal"]').click();
+  await page.locator(".friends button").first().click();
   await expect(page.locator(".animal-profile")).toContainText("goat");
   if (
     testInfo.project.name === "chromium" &&
@@ -90,6 +86,7 @@ test("settings, backup recovery, camera and construction menus work", async ({
     await page.locator(`[data-action="${action}"]`).click();
   await page.locator('[data-action="tab:build"]').click();
   for (const category of [
+    "enclosures",
     "paths",
     "shops",
     "playground",
@@ -162,7 +159,7 @@ test("short help explains booths and making an enclosure in either language", as
   await expect(page.locator("#panel")).toContainText(/Tor/);
 });
 
-test("a hungry animal eats real feeder stock after the keeper delivers a refill", async ({
+test("the job list sends the keeper to feed and water a hungry animal", async ({
   page,
 }) => {
   await page.goto("/");
@@ -175,19 +172,15 @@ test("a hungry animal eats real feeder stock after the keeper delivers a refill"
   );
   backup.animals[0].hunger = 20;
   backup.animals[0].water = 20;
-  for (const key of Object.keys(backup.counters)) {
-    if (/^(feeder|water)/.test(key)) delete backup.counters[key];
-  }
   await page
     .getByRole("textbox", { name: "Save data" })
     .fill(JSON.stringify(backup));
   await page.locator('[data-action="import"]').click();
   await page.locator('[data-action="tab:inspect"]').click();
-  await page.locator('[data-action="findAnimal"]').first().click();
-  await expect(page.locator("#panel")).toContainText(/fruit/i);
-  await page.locator('[data-action="findFeeder"]').first().click();
-  await page.locator('[data-action="care:refill"]').click();
-  await expect(page.locator("#keeper-status")).toContainText(/refill|food/i);
+  await expect(page.locator(".todo")).toContainText(/hungry/i);
+  await page.locator('[data-action^="job:feed:"]').click();
+  await expect(page.locator(".care-buttons")).toContainText("🍎");
+  await expect(page.locator("#keeper-status")).toContainText(/food/i);
   await expect(page.locator("#keeper-status")).toContainText("Ready", {
     timeout: 15000,
   });
@@ -197,8 +190,8 @@ test("a hungry animal eats real feeder stock after the keeper delivers a refill"
     JSON.parse(localStorage.getItem("dercoolezoo.save.v1")!),
   );
   expect(fed.animals[0].hunger).toBeGreaterThan(85);
-  expect(fed.inventory.fruit).toBe(backup.inventory.fruit - 1);
-  expect(fed.counters.refill).toBeGreaterThan(0);
+  expect(fed.animals[0].water).toBeGreaterThan(85);
+  expect(fed.counters.feed).toBeGreaterThan(0);
   await page.reload();
   await expect(page.getByRole("dialog")).toHaveCount(0);
 });
@@ -250,7 +243,7 @@ async function clickWorldTile(
   );
 }
 
-test("grow the zoo by fencing a new enclosure, adding a gate and adopting a second animal", async ({
+test("grow the zoo with a one-click enclosure and a second animal that moves in by itself", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -278,35 +271,22 @@ test("grow the zoo by fencing a new enclosure, adding a gate and adopting a seco
     .fill(JSON.stringify(setup));
   await page.locator('[data-action="import"]').click();
   await page.locator('[data-action="tab:build"]').click();
-  await page.locator('[data-action="category:fences"]').click();
-  await page.locator('[data-action="tool:fence:fence"]').click();
-  let coins = 300;
-  const placeEdge = async (ax: number, az: number, bx: number, bz: number) => {
-    await clickWorldTile(page, ax, az);
-    await expect(page.getByRole("status")).toContainText(/neighbor/i);
-    await clickWorldTile(page, bx, bz);
-    await expect(page.getByTestId("coins")).toHaveText(String(--coins));
-  };
-  for (let x = 7; x <= 9; x++) {
-    await placeEdge(x, 1, x, 0);
-    await placeEdge(x, 3, x, 4);
-  }
-  for (let z = 1; z <= 3; z++) {
-    await placeEdge(7, z, 6, z);
-    await placeEdge(9, z, 10, z);
-  }
-  await page.locator('[data-action="tool:fence:gate"]').click();
-  await placeEdge(8, 3, 8, 4);
+  // A child asks for a pig first: the game points to the home it needs.
   await page.locator('[data-action="tab:animals"]').click();
-  await page.locator('[data-action="tool:animal:goat"]').click();
+  await page.locator('[data-action="adopt:pig"]').click();
+  await expect(page.getByRole("status")).toContainText(/home/i);
+  await page.locator('[data-action="tab:build"]').click();
+  await expect(
+    page.locator('[data-action="tool:enclosure:earth-3"]'),
+  ).toBeVisible();
+  await page.locator('[data-action="tool:enclosure:earth-3"]').click();
   await clickWorldTile(page, 8, 2);
+  await expect(page.getByRole("status")).toContainText(/enclosure ready/i);
+  await expect(page.getByTestId("coins")).toHaveText("285");
+  await page.locator('[data-action="adopt:pig"]').click();
   await expect(page.getByRole("status")).toContainText(/arriv/i);
   await page.locator('[data-action="tab:build"]').click();
   await page.locator('[data-action="category:objects"]').click();
-  await page.locator('[data-action="tool:build:feeder"]').click();
-  await clickWorldTile(page, 7, 2);
-  await page.locator('[data-action="tool:build:trough"]').click();
-  await clickWorldTile(page, 9, 2);
   await page.locator('[data-action="tool:build:bench"]').click();
   await clickWorldTile(page, 8, 5);
   await page.locator('[data-action="category:paths"]').click();
@@ -321,17 +301,28 @@ test("grow the zoo by fencing a new enclosure, adding a gate and adopting a seco
     JSON.parse(localStorage.getItem("dercoolezoo.save.v1")!),
   );
   expect(built.animals).toHaveLength(2);
-  expect(built.animals[1]).toMatchObject({ species: "goat", x: 8, z: 2 });
+  expect(built.animals[1]).toMatchObject({ species: "pig" });
+  expect(
+    Math.abs(built.animals[1].x - 8) + Math.abs(built.animals[1].z - 2),
+  ).toBeLessThanOrEqual(2);
+  // The starter pen has a feeder and trough; the new home adds a full set.
+  for (const [object, count] of [
+    ["feeder", 2],
+    ["trough", 2],
+    ["shelter", 1],
+  ] as const)
+    expect(
+      built.tiles.filter((t: { object: string }) => t.object === object),
+    ).toHaveLength(count);
+  expect(Object.values(built.fences)).toContain("highfence");
   for (const [x, z, object] of [
-    [7, 2, "feeder"],
-    [9, 2, "trough"],
     [8, 5, "bench"],
     [8, 4, "path"],
     [9, 4, "popcorn"],
   ] as const) {
     expect(built.tiles[z * built.size + x].object).toBe(object);
   }
-  expect(built.fences["8,3|8,4"]).toBe("gate");
+  expect(Object.values(built.fences)).toContain("gate");
   expect(built.coins).toBeLessThan(300);
   await page.locator('[data-action="tab:inspect"]').click();
   await clickWorldTile(page, 2, 6);
@@ -356,7 +347,7 @@ test("grow the zoo by fencing a new enclosure, adding a gate and adopting a seco
   expect(errors).toEqual([]);
 });
 
-test("building changes cannot trap the keeper and stopping a job returns food", async ({
+test("building changes cannot trap the keeper and a job can be stopped", async ({
   page,
 }) => {
   const errors: string[] = [];
@@ -388,10 +379,10 @@ test("building changes cannot trap the keeper and stopping a job returns food", 
     timeout: 12000,
   });
   await page.locator('[data-action="pause"]').click();
-  await page.locator('[data-action="findAnimal"]').first().click();
+  await page.locator(".friends button").first().click();
   await page.locator('[data-action="care:feed"]').click();
   const profile = await page.locator(".animal-profile").boundingBox();
-  const careActions = await page.locator(".care-actions").boundingBox();
+  const careActions = await page.locator(".care-buttons").boundingBox();
   expect(profile).not.toBeNull();
   expect(careActions).not.toBeNull();
   expect(careActions!.y).toBeGreaterThanOrEqual(profile!.y + profile!.height);
@@ -404,9 +395,23 @@ test("building changes cannot trap the keeper and stopping a job returns food", 
     JSON.parse(localStorage.getItem("dercoolezoo.save.v1")!),
   );
   expect(stopped.keeper.task).toBeNull();
-  expect(stopped.inventory.greens).toBe(setup.inventory.greens);
   expect(stopped.tiles[6 * stopped.size + 2].object).toBe("bench");
   await page.reload();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(errors).toEqual([]);
+});
+
+test.describe("a German browser", () => {
+  test.use({ locale: "de-DE" });
+  test("starts the zoo in German without touching settings", async ({
+    page,
+  }) => {
+    await page.goto("/");
+    await expect(page.getByRole("dialog")).toContainText("Wer zieht");
+    await page.locator('[data-action="start"]').click();
+    await expect(page.locator("html")).toHaveAttribute("lang", "de");
+    await expect(page.locator(".todo")).toContainText("Aufgaben");
+    await page.locator('[data-action="tab:build"]').click();
+    await expect(page.locator("#panel")).toContainText("Wiesen-Gehege");
+  });
 });

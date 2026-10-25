@@ -12,21 +12,21 @@ reports and GitHub Actions runs.
 
 ## Playable core
 
-| Vision sections  | Implemented behavior                                                                                                                              | Evidence                                                                          |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
-| 1–6, 37, 43      | One chosen starter, zero coins, untidy small plot, visible keeper and short care/build/open goals                                                 | `src/game.ts:createGame`, `src/app.ts`, `tests/game.test.ts`                      |
-| 7–8, 41          | One currency, tickets, donations, sales, quality-based recommended admission, star unlocks and coin rewards                                       | `src/game.ts:attractiveness`, `visit`, `goals`, `tick`                            |
-| 9–13, 23         | Child/parent/fan visitors, family happiness, path movement, hunger/energy/fun, benches, nearby snacks and play                                    | `src/game.ts:visit`, `src/catalog.ts`, `tests/game.test.ts`                       |
-| 14, 17, 21, 24   | Keeper travels to care/clean/clear tasks; purchases enter inventory; carried food is consumed on delivery; digestion produces removable droppings | `src/game.ts:command`, `finishTask`, `tick`, `src/renderer.ts`, integration tests |
-| 15–16, 19–20, 22 | Tiered animal catalog, grid terrain, fences/gates, closed-area detection, habitat/water/space checks, pathfinding, land expansion                 | `src/catalog.ts`, `src/world.ts`, `src/game.ts`                                   |
-| 18               | Named animals and personality labels                                                                                                              | `src/catalog.ts`, animal profile UI                                               |
-| 25               | Visible employees, automatic feeding/water/cleanup/gardening and wages without debt                                                               | `src/game.ts:staff`, `hire`, `tick`, renderer                                     |
-| 26               | Short goals with one-time coin rewards                                                                                                            | `src/game.ts:goals`, goal panel, tests                                            |
-| 28–31            | Original procedural isometric diorama, big-headed figures, animal/keeper activity animation, mouse selection/building and camera controls         | `src/renderer.ts`, `src/app.ts`, renderer tests                                   |
-| 32               | Static browser application, local autosave, validated import/export data, Firefox/Chromium browser test targets                                   | `src/storage.ts`, storage tests, Playwright setup                                 |
-| 35–36            | Zoo book with species names, habitat, food and two brief animal facts                                                                             | locale data and zoo-book panel                                                    |
-| 39               | Catalog and simulation include all five named MVP species and the listed basic buildings, care actions and core systems                           | `src/catalog.ts`, `src/game.ts`, `src/app.ts`                                     |
-| 3, 40, 42        | No animal death, debt, premium currency, gambling, real-money purchases, multiplayer or violent events                                            | Simulation model and dependency/application design                                |
+| Vision sections  | Implemented behavior                                                                                                                          | Evidence                                                                          |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| 1–6, 37, 43      | One chosen starter, zero coins, untidy small plot, visible keeper and short care/build/open goals                                             | `src/game.ts:createGame`, `src/app.ts`, `tests/game.test.ts`                      |
+| 7–8, 41          | One currency, tickets, donations, sales, quality-based recommended admission, star unlocks and coin rewards                                   | `src/game.ts:attractiveness`, `visit`, `goals`, `tick`                            |
+| 9–13, 23         | Child/parent/fan visitors, family happiness, path movement, hunger/energy/fun, benches, nearby snacks and play                                | `src/game.ts:visit`, `src/catalog.ts`, `tests/game.test.ts`                       |
+| 14, 17, 21, 24   | Keeper travels to care/clean/clear tasks at once; one feeding round feeds and waters a pen; digestion produces droppings cleaned pen-wide     | `src/game.ts:command`, `finishTask`, `tick`, `src/renderer.ts`, integration tests |
+| 15–16, 19–20, 22 | Tiered animal catalog, one-click themed enclosures, manual fences/gates, closed-area detection, habitat checks, automatic adoption, expansion | `src/catalog.ts`, `src/world.ts`, `src/game.ts`                                   |
+| 18               | Named animals and personality labels                                                                                                          | `src/catalog.ts`, animal profile UI                                               |
+| 25               | Visible employees, automatic feeding/water/cleanup/gardening and wages without debt                                                           | `src/game.ts:staff`, `hire`, `tick`, renderer                                     |
+| 26               | Short goals with one-time coin rewards                                                                                                        | `src/game.ts:goals`, goal panel, tests                                            |
+| 28–31            | Original procedural isometric diorama, big-headed figures, animal/keeper activity animation, mouse selection/building and camera controls     | `src/renderer.ts`, `src/app.ts`, renderer tests                                   |
+| 32               | Static browser application, local autosave, validated import/export data, Firefox/Chromium browser test targets                               | `src/storage.ts`, storage tests, Playwright setup                                 |
+| 35–36            | Zoo book with species names, habitat, food and two brief animal facts                                                                         | locale data and zoo-book panel                                                    |
+| 39               | Catalog and simulation include all five named MVP species and the listed basic buildings, care actions and core systems                       | `src/catalog.ts`, `src/game.ts`, `src/app.ts`                                     |
+| 3, 40, 42        | No animal death, debt, premium currency, gambling, real-money purchases, multiplayer or violent events                                        | Simulation model and dependency/application design                                |
 
 New zoos begin on 12 × 12 tiles with an organically scattered rough outer area;
 older smaller saves gain the same starting space while preserving existing tiles. The admission interval is slower,
@@ -34,9 +34,12 @@ and donation chances and goal rewards are smaller. Movement respects occupied
 tiles, care completes from beside the animal, and workers/families spawn on
 separate free cells. Player-facing speeds are 0.5×, 1× and 2×, with pause available.
 
-Food transport and waste removal are explicit additional user requirements.
-Purchasing food does not feed animals remotely. The initial food supply and free
-emergency portions prevent a zero-coin dead end.
+Food transport and waste removal are explicit additional user requirements. In
+`0.5.0` they were simplified after feedback that care felt unclear: there is no
+food store, feeder refill or water run any more. The keeper is told _what_ to do
+(Feed, Pet, Clean) and does it directly; feeding costs one coin, or nothing when
+the zoo has none, so there is no zero-coin dead end. Enclosures are built in one
+click from themed presets, and adopting places the animal automatically.
 
 ## Version-one completion audit
 
@@ -58,9 +61,9 @@ emergency portions prevent a zero-coin dead end.
 | 14      | Keeper context actions, routes, tools and food carrying; unit/browser tests.                                                                                          |
 | 15      | Twenty species across five tiers, including all MVP species; catalog and adoption tests.                                                                              |
 | 16      | Space shared by occupants, terrain ratios, mixed water/land, fences, feeders, shelters, plants and rocks; habitat tests. Tropical/snow ground represents warmth/cold. |
-| 17      | Hunger, water, affection and digestion; physical delivery, waste removal, real feeder/trough stock and truthful empty visuals; stock/consumption/save tests.          |
+| 17      | Hunger, water, affection and digestion; direct pen-wide feeding/cleaning, always-filled troughs, need meters and a keeper job list; care/job/save tests.              |
 | 18      | Localized names and personalities with curious/playful/sleepy animation; UI/renderer tests.                                                                           |
-| 19      | Edge fences/gates, automatic closed-region detection, terrain brush and habitat objects; world/build tests.                                                           |
+| 19      | One-click themed enclosures plus edge fences/gates, closed-region detection, terrain brush and habitat objects; every species passes its matching preset (tests).     |
 | 20      | Four path types and connected grid routing; route and opposing-traffic tests.                                                                                         |
 | 21      | Weeds, rocks, trees and stumps; short keeper/gardener cleanup tasks tested.                                                                                           |
 | 22      | Coin-funded rough-land expansion to 16 × 16; expansion and save tests.                                                                                                |

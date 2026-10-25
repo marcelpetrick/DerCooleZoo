@@ -17,10 +17,9 @@ import { StandardMaterial } from "@babylonjs/core/Materials/standardMaterial.js"
 import { PointerEventTypes } from "@babylonjs/core/Events/pointerEvents.js";
 // Scene.pick is registered separately when using granular Babylon imports.
 import "@babylonjs/core/Culling/ray.js";
-import { getSpecies, buildings, foods } from "./catalog";
+import { getSpecies, buildings } from "./catalog";
 import {
-  feederStock,
-  waterStock,
+  penMates,
   points,
   tile,
   type Game,
@@ -425,21 +424,19 @@ export function createRenderer(
     }
     if (id === "feeder" || id === "trough") {
       box(parent, "feeding-box", wood, [x, 0.12, z], [0.6, 0.24, 0.42], at);
-      const stocked =
-        id === "trough" ? waterStock(game, at) > 0 : feederStock(game, at) > 0;
-      if (stocked)
-        box(
-          parent,
-          "feeding-content",
-          id === "trough" ? "#88cbd2" : "#e5d0a0",
-          [x, 0.25, z],
-          [0.48, 0.045, 0.31],
-          at,
-        );
+      box(
+        parent,
+        "feeding-content",
+        id === "trough" ? "#88cbd2" : "#e5d0a0",
+        [x, 0.25, z],
+        [0.48, 0.045, 0.31],
+        at,
+      );
       if (id === "feeder") {
-        const portions = foods.filter(
-          (food) => feederStock(game, at, food) > 0,
-        );
+        // Show what the residents eat, so children see whose bowl it is.
+        const portions = [
+          ...new Set(penMates(game, at).map((a) => getSpecies(a.species).food)),
+        ];
         for (const [index, food] of portions.entries()) {
           const serving = new TransformNode("feeder-serving", scene);
           serving.parent = parent;
@@ -453,28 +450,6 @@ export function createRenderer(
           for (const mesh of serving.getChildMeshes())
             mesh.name = "feeder-" + mesh.name;
         }
-        if (!stocked) {
-          const marker = new TransformNode("empty-feeder", scene);
-          marker.parent = parent;
-          marker.position.set(x, 0.48, z);
-          marker.scaling.setAll(0.45);
-          const nearest = [...game.animals].sort(
-            (a, b) =>
-              Math.hypot(a.x - x, a.z - z) - Math.hypot(b.x - x, b.z - z),
-          )[0];
-          const food = getSpecies(nearest.species).food;
-          needIcon(marker, food === "greens" ? "food" : "food-" + food, at);
-          for (const mesh of marker.getChildMeshes())
-            mesh.name = "empty-feeder-" + mesh.name;
-        }
-      } else if (!stocked) {
-        const marker = new TransformNode("empty-trough", scene);
-        marker.parent = parent;
-        marker.position.set(x, 0.48, z);
-        marker.scaling.setAll(0.45);
-        needIcon(marker, "water", at);
-        for (const mesh of marker.getChildMeshes())
-          mesh.name = "empty-trough-" + mesh.name;
       }
       return;
     }
@@ -1642,19 +1617,17 @@ export function createRenderer(
       activity === "snack" ? Math.sin(visualTime * 5) * 0.15 : 0;
     f.node.scaling.y = (activity === "sit" ? 0.75 : 1) * f.node.scaling.x;
     const need = task
-      ? ["feed", "refill"].includes(task.kind)
+      ? task.kind === "feed"
         ? task.carrying && task.carrying !== "greens"
           ? "food-" + task.carrying
           : "food"
-        : ["water", "refillWater"].includes(task.kind)
-          ? "water"
-          : task.kind === "pet"
-            ? "heart"
-            : task.kind === "plant"
-              ? "plant"
-              : ["clean", "clear"].includes(task.kind)
-                ? "clean"
-                : "work"
+        : task.kind === "pet"
+          ? "heart"
+          : task.kind === "plant"
+            ? "plant"
+            : ["clean", "clear"].includes(task.kind)
+              ? "clean"
+              : "work"
       : "";
     updateBubble(f, need);
     for (const mesh of f.node.getChildMeshes())
