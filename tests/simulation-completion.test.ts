@@ -872,3 +872,23 @@ describe("keeper flower planting is paid physical work", () => {
     expect(g.counters.flowers).toBeUndefined();
   });
 });
+
+test("the keeper can plant after already walking onto the chosen plot", () => {
+  const g = createGame();
+  const plot = { x: 2, z: 6 };
+  tile(g, plot).object = "";
+  g.coins = 10;
+  expect(command(g, "walk", plot)).toBe(true);
+  advance(g, 8);
+  expect(equal(g.keeper, plot)).toBe(true);
+  expect(canPlant(g, plot)).toBe(true);
+  expect(command(g, "plant", plot)).toBe(true);
+  expect(g.coins).toBe(8);
+  expect(tile(g, plot).object).toBe("");
+  expect(g.keeper.task!.route.length).toBeGreaterThan(0);
+  advance(g, 8);
+  expect(distance(g.keeper, plot)).toBe(1);
+  expect(tile(g, plot).object).toBe("flowers");
+  expect(g.counters.plant).toBe(1);
+  expect(g.coins).toBe(8);
+});

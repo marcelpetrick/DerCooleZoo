@@ -56,3 +56,11 @@ interpolation. Milestone assertions retain vehicle motion, crate opening,
 confetti, effect replacement, animal reveal and expiry checks, and verify that a
 single delayed frame expires old effects. Walking and passing retain frame-by-frame
 checks. Unit timeouts, browser targets and coverage thresholds were not weakened.
+
+For `0.4.5`, base is `main` at `eea1f14` (formal three-dot diff empty). Supplemental
+review confirms simulation time advances through bounded substeps, never rewinds,
+respects pause/speed and caps background catch-up. Planting ignores only the
+working actor's occupancy, requires an adjacent work position and still rejects
+other figures. Delayed-frame, standing-plot and real-browser growth regressions
+pass; no confirmed blockers remain in the changes. GitHub About metadata was
+rechecked and remains supported without edits.

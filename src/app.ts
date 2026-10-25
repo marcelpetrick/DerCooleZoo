@@ -35,7 +35,6 @@ import {
   hire,
   paint,
   points,
-  tick,
   taskRoute,
   tile,
   welfare,
@@ -871,9 +870,9 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
   let last = performance.now();
   function animate(now: number) {
     if (disposed) return;
-    const dt = Math.min((now - last) / 1000, 0.1);
+    const dt = Math.max(0, Math.min((now - last) / 1000, 1));
     last = now;
-    if (started) tick(game, dt * speed);
+    if (started) advance(game, dt * speed);
     renderer.render();
     audio.update(
       game.sound,

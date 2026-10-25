@@ -184,3 +184,12 @@ Patch `0.4.4` corrects transient animation lifetime under slow frames and checks
 arrival/reveal milestones using the controlled clock, preserving the existing
 behavior assertions and unchanged quality thresholds. Publication is verified
 against the final workflow before the release is reported complete.
+
+Run `40186059155` passed unit tests but blocked `0.4.4` publication on the
+Chromium care-flow timeout. Patch `0.4.5` fixes the simulation's frame-rate
+dependency using bounded real-time substeps; regressions verify delayed frames,
+pause, speed, suspended-tab catch-up and autosave. Planting also remains available
+after the keeper has walked onto the chosen plot, with a step aside before work.
+Its local gate passed 163 unit/integration tests, 14 real Firefox/Chromium
+scenarios, all coverage thresholds, production build and Docker smoke. Final
+publication is verified against the resulting commit before completion is reported.

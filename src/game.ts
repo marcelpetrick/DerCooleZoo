@@ -144,8 +144,8 @@ export const figures = (g: Game): Point[] => [
 ];
 export const occupied = (g: Game, p: Point, except?: Point): boolean =>
   figures(g).some((figure) => figure !== except && equal(figure, p));
-export const canPlant = (g: Game, p: Point): boolean =>
-  inside(p, g.size) && tile(g, p).object === "" && !occupied(g, p);
+export const canPlant = (g: Game, p: Point, actor: Point = g.keeper): boolean =>
+  inside(p, g.size) && tile(g, p).object === "" && !occupied(g, p, actor);
 export const passable = (g: Game, p: Point): boolean =>
   inside(p, g.size) &&
   [
@@ -547,7 +547,7 @@ export function command(
       tile(g, p).object !== "litter")
   )
     return false;
-  if (kind === "plant" && !canPlant(g, p)) {
+  if (kind === "plant" && !canPlant(g, p, actor)) {
     g.message = "occupied";
     return false;
   }
@@ -601,7 +601,7 @@ function finishTask(g: Game, actor: Game["keeper"] | Worker): void {
     t = tile(g, task.target);
   let completed = true;
   if (task.kind === "plant") {
-    if (canPlant(g, task.target)) {
+    if (canPlant(g, task.target, actor)) {
       t.object = "flowers";
       g.counters.flowers = (g.counters.flowers ?? 0) + 1;
     } else {

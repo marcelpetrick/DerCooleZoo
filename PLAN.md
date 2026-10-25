@@ -195,3 +195,22 @@ lines. Review confirmed lifetime and movement clocks remain independent; no
 findings remain, and GitHub About claims/topics are unchanged. After pushing,
 inspect the actual final verification, Pages and GHCR jobs and play the published
 version before reporting completion.
+
+## Slow-frame and planting follow-up (0.4.5)
+
+Run `40186059155` passed unit checks but exposed slow-frame keeper timing in the
+Chromium care flow. The previous animation fix remains valid; this patch addresses
+the separate simulation-clock cap.
+
+- [x] Advance the simulation in bounded substeps from actual frame elapsed time.
+- [x] Verify delayed frames, pause, speed, suspended tabs and ten-second autosave.
+- [x] Allow planting after the keeper has reached the chosen plot; step aside
+      before planting, while other figures still block placement.
+- [x] Pass the full local gate and prepare the versioned release commit.
+
+Validation: `0.4.5` passed 163 unit/integration tests, 14 Firefox/Chromium
+scenarios (including walking onto the planting plot before planting), unchanged
+coverage gates, production build and Docker smoke. Coverage is 99.59% statements,
+98.05% branches, 99.13% functions and 99.75% lines. The final remote workflow and
+public version are checked after pushing; earlier failed attempts are not treated
+as successful releases.

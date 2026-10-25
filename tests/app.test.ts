@@ -1071,3 +1071,47 @@ test("planting replaces an empty-tile walk, charges once and shows flowers only 
     root.querySelector('[data-action="care:plant"]')!.textContent,
   ).toContain("Blumen pflanzen");
 });
+
+test("slow rendering preserves real care time, speed and pause while bounding background catch-up", () => {
+  let now = 0;
+  vi.spyOn(performance, "now").mockImplementation(() => now);
+  const callbacks: FrameRequestCallback[] = [];
+  vi.stubGlobal(
+    "requestAnimationFrame",
+    vi.fn((callback: FrameRequestCallback) => {
+      callbacks.push(callback);
+      return callbacks.length;
+    }),
+  );
+  vi.stubGlobal("cancelAnimationFrame", vi.fn());
+  const { app, click } = setup(true, undefined, true);
+  const frame = (milliseconds: number) => {
+    now += milliseconds;
+    callbacks.shift()!(now);
+  };
+  click("findAnimal");
+  click("care:feed");
+  expect(app.game.keeper.task?.kind).toBe("feed");
+  for (let i = 0; i < 12; i++) frame(500);
+  expect(app.game.time).toBe(6);
+  expect(app.game.counters.feed).toBe(1);
+  expect(app.game.animals[0].hunger).toBeGreaterThan(95);
+  expect(app.game.keeper.task).toBeNull();
+  click("pause");
+  frame(500);
+  expect(app.game.time).toBe(6);
+  click("pause");
+  click("speed");
+  frame(500);
+  expect(app.game.time).toBe(6.25);
+  click("speed");
+  frame(500);
+  expect(app.game.time).toBe(7.25);
+  click("speed");
+  frame(500);
+  expect(app.game.time).toBe(7.75);
+  frame(3_600_000);
+  expect(app.game.time).toBe(8.75);
+  frame(-500);
+  expect(app.game.time).toBe(8.75);
+});

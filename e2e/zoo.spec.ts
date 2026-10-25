@@ -335,9 +335,12 @@ test("grow the zoo by fencing a new enclosure, adding a gate and adopting a seco
   expect(built.coins).toBeLessThan(300);
   await page.locator('[data-action="tab:inspect"]').click();
   await clickWorldTile(page, 2, 6);
+  await page.locator('[data-action="pause"]').click();
+  await expect(page.locator("#keeper-status")).toContainText("Ready", {
+    timeout: 15000,
+  });
   await page.locator('[data-action="care:plant"]').click();
   await expect(page.locator("#keeper-status")).toContainText(/plant/i);
-  await page.locator('[data-action="pause"]').click();
   await expect(page.locator("#keeper-status")).toContainText("Ready", {
     timeout: 15000,
   });
