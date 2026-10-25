@@ -919,11 +919,7 @@ button:active {
   margin-top: 10px;
 }
 .care-actions {
-  position: sticky;
-  bottom: 0;
   padding: 8px 0;
-  background: #fffef8f5;
-  z-index: 1;
 }
 .care-hint {
   background: #eff5df;

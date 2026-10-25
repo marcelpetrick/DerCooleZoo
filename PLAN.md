@@ -235,3 +235,22 @@ checks exact supplies and reloads the save. Review found no remaining blockers i
 the changed job paths; About metadata remains accurate. After pushing, verify the
 actual Actions, Pages and GHCR results and smoke-test the published version before
 reporting the release complete. Keep port 5173 running for the players.
+
+## Sidebar readability (0.4.7)
+
+- [x] Inspect actual busy-keeper UI in the running WebGL game.
+- [x] Remove the sticky Pet/Clean row that overlaps the animal name/details at
+      1280×720; keep these actions in normal sidebar flow.
+- [x] Add a browser geometry assertion that controls follow the whole profile.
+- [x] Repeat the full local gate, refresh screenshot and prepare publication.
+
+Feed/water guidance remains at the top; secondary actions scroll with the panel.
+
+The recovery patch `0.4.6` (`e382a54`) passed all three jobs in
+[Actions run 40224010422](https://github.com/marcelpetrick/DerCooleZoo/actions/runs/40224010422).
+The sidebar follow-up `0.4.7` passed the same complete local gate: 168 tests,
+16 Firefox/Chromium scenarios, unchanged coverage thresholds, build and Docker.
+The geometric browser assertion confirms the Pet/Clean row follows the profile
+instead of painting across it. Post-push completion requires actual green final
+Actions/Pages/GHCR results and the published-version smoke check. The local
+port-5173 game remains running for the players.

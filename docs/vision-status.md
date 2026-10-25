@@ -207,3 +207,10 @@ The complete local gate passed 168 unit/integration tests, 16 real Firefox/Chrom
 flows, 99.60% statements / 98.07% branches / 99.13% functions / 99.75% lines,
 production build and Docker smoke verification. The added browser case verifies
 construction, recovery, new care work, explicit stop, supplies and save/reopen.
+
+The recovery release passed all three jobs in
+[Actions run 40224010422](https://github.com/marcelpetrick/DerCooleZoo/actions/runs/40224010422).
+A 1280×720 screenshot review then found secondary care buttons overlapping the
+animal profile. The `0.4.7` follow-up puts them in normal sidebar flow and verifies
+non-overlap in both real browsers. Its full local gate passed 168 tests, 16 browser
+scenarios, unchanged coverage requirements, production build and Docker smoke.

@@ -76,3 +76,9 @@ static route failure releases jobs, while temporary visitor occupancy waits.
 Review traced both automatic and explicit cancellation paths and the localized
 controls. Regression tests cover job recovery, exact-once refunds and resume after
 temporary obstruction. GitHub About metadata is unchanged by these fixes.
+
+The subsequent 1280×720 visual review found sticky secondary care controls
+painting over the animal name/profile. `0.4.7` keeps Pet/Clean in ordinary sidebar
+flow while primary Feed/Water remain near the top. A real-browser bounds check
+asserts the controls follow the complete profile. Both browsers and the full
+pipeline pass; no further verified blockers were found in the exercised flows.

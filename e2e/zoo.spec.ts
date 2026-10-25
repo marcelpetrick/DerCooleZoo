@@ -390,6 +390,11 @@ test("building changes cannot trap the keeper and stopping a job returns food", 
   await page.locator('[data-action="pause"]').click();
   await page.locator('[data-action="findAnimal"]').first().click();
   await page.locator('[data-action="care:feed"]').click();
+  const profile = await page.locator(".animal-profile").boundingBox();
+  const careActions = await page.locator(".care-actions").boundingBox();
+  expect(profile).not.toBeNull();
+  expect(careActions).not.toBeNull();
+  expect(careActions!.y).toBeGreaterThanOrEqual(profile!.y + profile!.height);
   await expect(page.locator('[data-action="cancelTask"]')).toBeVisible();
   await page.locator('[data-action="cancelTask"]').click();
   await expect(page.locator("#keeper-status")).toContainText("Ready");
