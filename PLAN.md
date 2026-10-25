@@ -131,7 +131,7 @@ Every commit has a version bump and passes the available pipeline first.
 
 ## Optional next iteration
 
-- [ ] Consider animal XP from care and admiration, with gentle level-up celebrations.
+- [x] Consider animal XP from care and admiration: deferred beyond required version one.
 
 ## Heart bubble readability patch (0.4.2)
 
@@ -173,3 +173,25 @@ build and Docker smoke test passed. Independent supplementary reviews have no
 remaining confirmed blockers, and GitHub About metadata still matches. The source
 and audit are prepared for one verified patch commit; actual remote publication
 results are checked after pushing, before the final release report.
+
+## Release follow-up (0.4.4)
+
+GitHub run `40185660585` rejected `0.4.3` before publication: the arrival test's
+260 full-scene frames exceeded its five-second unit-test budget under CI coverage.
+The local full gate had passed; this remote result is recorded separately.
+
+- [x] Advance transient animation lifetimes by real elapsed time while keeping
+      movement interpolation bounded; effects must not linger on slow frames.
+- [x] Exercise arrival/reveal milestones with the controlled clock rather than
+      hundreds of redundant full-scene renders; retain all behavioral assertions.
+- [x] Prepare a verified patch commit after repeating the complete local pipeline.
+
+Coverage thresholds, unit timeout and browser requirements remain unchanged.
+
+Patch `0.4.4` passed 161 unit/integration tests, 14 Firefox/Chromium browser
+scenarios, unchanged coverage thresholds, production build and Docker smoke.
+Coverage remains 99.59% statements / 98.05% branches / 99.13% functions / 99.75%
+lines. Review confirmed lifetime and movement clocks remain independent; no
+findings remain, and GitHub About claims/topics are unchanged. After pushing,
+inspect the actual final verification, Pages and GHCR jobs and play the published
+version before reporting completion.

@@ -1891,9 +1891,12 @@ export function createRenderer(
   }
   function render(): void {
     const now = performance.now();
-    frameDelta = Math.max(0, Math.min(0.05, (now - previousRenderTime) / 1000));
+    const elapsed = Math.max(0, (now - previousRenderTime) / 1000);
+    frameDelta = Math.min(0.05, elapsed);
     previousRenderTime = now;
-    visualTime += frameDelta;
+    // Lifecycle timers follow elapsed time even after a suspended tab or slow
+    // frame; only motion smoothing needs a bounded integration step.
+    visualTime += elapsed;
     if (revision !== game.revision || size !== game.size) rebuild();
     else reconcileFigures();
     for (const a of game.animals) {

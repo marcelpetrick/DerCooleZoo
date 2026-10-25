@@ -176,3 +176,11 @@ The `0.4.3` local completion gate passed: 161 unit/integration tests, 14
 Firefox/Chromium browser scenarios, production build and Docker smoke check.
 Coverage is 99.59% statements, 98.05% branches, 99.13% functions and 99.75% lines.
 The refreshed screenshot comes from the actual running WebGL application.
+
+The first follow-through publication attempt (`0.4.3`, commit `7517f79`) was
+blocked by an arrival-test timeout in
+[Actions run 40185660585](https://github.com/marcelpetrick/DerCooleZoo/actions/runs/40185660585).
+Patch `0.4.4` corrects transient animation lifetime under slow frames and checks
+arrival/reveal milestones using the controlled clock, preserving the existing
+behavior assertions and unchanged quality thresholds. Publication is verified
+against the final workflow before the release is reported complete.

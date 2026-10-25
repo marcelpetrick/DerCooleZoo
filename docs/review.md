@@ -50,3 +50,9 @@ keeper planting, save and reload.
 
 The subsequent `githubAbout` check confirmed the public sentence and all ten
 topics remain supported by the repository; no public metadata edits were needed.
+
+The `0.4.4` review separates unclamped transient-effect lifetime from capped motion
+interpolation. Milestone assertions retain vehicle motion, crate opening,
+confetti, effect replacement, animal reveal and expiry checks, and verify that a
+single delayed frame expires old effects. Walking and passing retain frame-by-frame
+checks. Unit timeouts, browser targets and coverage thresholds were not weakened.

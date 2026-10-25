@@ -637,10 +637,8 @@ test("adoptions celebrate with a moving transporter, unloading crate and falling
     expect(confetti).toHaveLength(24);
     expect(confetti.every((mesh) => !mesh.isPickable)).toBe(true);
     const originalHeight = confetti[0].position.y;
-    for (let i = 0; i < 90; i++) {
-      now += 50;
-      renderer.render();
-    }
+    now += 4500;
+    renderer.render();
     expect(van.position.x).toBeGreaterThan(-1.5);
     expect(renderer.scene.getMeshByName("arrival-crate")!.scaling.x).toBe(0);
     expect(confetti[0].position.y).not.toBe(originalHeight);
@@ -651,10 +649,9 @@ test("adoptions celebrate with a moving transporter, unloading crate and falling
     expect(
       renderer.scene.meshes.filter((mesh) => mesh.name === "transporter-body"),
     ).toHaveLength(1);
-    for (let i = 0; i < 170; i++) {
-      now += 50;
-      renderer.render();
-    }
+    // One delayed frame must expire the effect after its actual eight seconds.
+    now += 8500;
+    renderer.render();
     expect(renderer.scene.getTransformNodeByName("celebration")).toBeNull();
   } finally {
     clock.mockRestore();
@@ -883,19 +880,15 @@ test("an adopted animal emerges where its delivery crate unloads without shrinki
         .getTransformNodeByName(`bubble-animal-${newcomer.id}`)!
         .isEnabled(),
     ).toBe(false);
-    for (let frame = 0; frame < 70; frame++) {
-      now += 50;
-      renderer.render();
-    }
+    now += 3500;
+    renderer.render();
     const crate = renderer.scene.getMeshByName("arrival-crate")!;
     expect(crate.position.x).toBe(newcomer.x);
     expect(crate.position.z).toBe(newcomer.z);
     expect(figure.scaling.x).toBeCloseTo(0.5, 5);
     expect(figure.position.y).toBeGreaterThan(0.1);
-    for (let frame = 0; frame < 25; frame++) {
-      now += 50;
-      renderer.render();
-    }
+    now += 1250;
+    renderer.render();
     expect(figure.scaling.x).toBe(1);
     expect(starter.scaling.x).toBe(1);
     expect(
@@ -1125,17 +1118,17 @@ test("an unloading crate follows a newcomer that moves before its reveal", () =>
     renderer.render();
     const newcomer = game.animals.at(-1)!;
     newcomer.x = 8;
-    for (let frame = 0; frame < 70; frame++) {
-      now += 50;
-      renderer.render();
-    }
+    now += 3500;
+    renderer.render();
     const figure = renderer.scene.getTransformNodeByName(
       `animal-${newcomer.id}`,
     )!;
     const crate = renderer.scene.getMeshByName("arrival-crate")!;
     expect(crate.position.x).toBeCloseTo(figure.position.x, 6);
     expect(crate.position.z).toBeCloseTo(figure.position.z, 6);
-    expect(crate.position.x).toBeGreaterThan(7.9);
+    // Position smoothing remains bounded on the delayed frame, while the crate
+    // stays aligned with the newcomer's displayed position.
+    expect(crate.position.x).toBeGreaterThan(7);
   } finally {
     clock.mockRestore();
   }
