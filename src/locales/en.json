@@ -406,5 +406,9 @@
   "steps.popcorn": "1. Earn 12 coins. 2. Open Build → Shops → Popcorn stall. 3. Click a clear tile beside a connected path. Hungry guests buy automatically. A vendor later improves sales.",
   "steps.secondAnimal": "1. Earn coins for an unlocked animal. 2. Build a closed enclosure with enough space; include a gate, food and water. 3. Open Animals, select a species, then click a free tile inside. A transporter celebrates the arrival!",
   "steps.stars": "1. Add another animal species. 2. Improve habitats and animal happiness. 3. Add useful buildings, clean your zoo and delight guests. Zoo stars rise with these improvements and unlock more species.",
-  "steps.finished": "All ten tasks are done. Keep building habitats, welcoming animals and making your zoo a happy place."
+  "steps.finished": "All ten tasks are done. Keep building habitats, welcoming animals and making your zoo a happy place.",
+  "tip.repairDone": "The starter fence is already repaired. Your keeper can now help with other care tasks.",
+  "ui.plant": "Plant flowers",
+  "message.plant": "Your keeper is bringing flowers to plant.",
+  "tip.plant": "Click to send your keeper to plant flowers on this clear tile for 2 coins. Flowers appear when planting finishes and make your zoo more attractive."
 }

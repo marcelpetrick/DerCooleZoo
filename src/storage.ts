@@ -13,6 +13,7 @@ import {
   goalIds,
   isPath,
   occupied,
+  plantCost,
   naturalTile,
   passable,
   points,
@@ -96,6 +97,7 @@ function valid(value: unknown): value is Game {
         "walk",
         "refill",
         "refillWater",
+        "plant",
       ]),
       target: point,
       animal: number(0, 1e9, true),
@@ -308,6 +310,7 @@ function valid(value: unknown): value is Game {
       const route = taskRoute(game, actor, task.kind, task.target);
       if (route === null) {
         if (task.carrying) game.inventory[task.carrying]++;
+        if (task.kind === "plant") game.coins += plantCost;
         actor.task = null;
       } else task.route = route;
     }

@@ -437,3 +437,39 @@ test("resource refill tasks validate their facility targets and carried food", (
   tile(noTrough, { x: 5, z: 2 }).object = "";
   expect(importGame(exportGame(noTrough))).toBeNull();
 });
+
+test("queued planting saves restore and reject food payloads on a gardening task", () => {
+  const g = createGame(),
+    p = { x: 3, z: 6 };
+  tile(g, p).object = "";
+  g.coins = 10;
+  expect(command(g, "plant", p)).toBe(true);
+  const restored = importGame(exportGame(g))!;
+  expect(restored).toEqual(g);
+  advance(restored, 10);
+  expect(tile(restored, p).object).toBe("flowers");
+  const malformed = structuredClone(g);
+  malformed.keeper.task!.carrying = "greens";
+  expect(importGame(exportGame(malformed))).toBeNull();
+});
+
+test("relocating a legacy keeper refunds a planting reservation if the plot is unreachable", () => {
+  const g = createGame(),
+    p = { x: 3, z: 6 };
+  tile(g, p).object = "";
+  g.coins = 10;
+  expect(command(g, "plant", p)).toBe(true);
+  // Legacy task routes could finish on their own target; loading reroutes them.
+  g.keeper.task!.route = [
+    { x: 2, z: 5 },
+    { x: 3, z: 5 },
+    { x: 3, z: 6 },
+  ];
+  for (const q of points(g))
+    if (distance(q, p) === 1) tile(g, q).object = "rock";
+  const restored = importGame(exportGame(g))!;
+  expect(restored).not.toBeNull();
+  expect(restored.keeper.task).toBeNull();
+  expect(restored.coins).toBe(10);
+  expect(tile(restored, p).object).toBe("");
+});

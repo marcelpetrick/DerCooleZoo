@@ -145,3 +145,31 @@ metrics exceed 95%, and the production Docker smoke test passed. The actual UI
 screenshot confirms the pointed heart. Supplemental review found no blockers;
 GitHub About metadata still matches. Post-push gate: inspect the resulting
 Actions/Pages/GHCR jobs before reporting the patch released.
+
+## Completion follow-through (0.4.3)
+
+- [x] Fix carer assignment: skip unreachable/reserved animals and still clean.
+- [x] Resolve keeper/visitor opposing-route deadlocks without shared cells.
+- [x] Keep water/feed hints and goal completion live while panels remain open.
+- [x] Preserve unsent backup text when other settings controls are used.
+- [x] Complete coin-to-counter feedback and truthful arrival/waste visuals.
+- [x] Add the required visible keeper planting action: travel, spend coins, plant flowers.
+- [x] Fix rapid successive world clicks, ground placement and camera azimuth drift.
+- [x] Prove enclosure building, gate placement, facilities and second adoption
+      using actual browser controls and world clicks.
+- [x] Run reviewBranch, resolve findings, then check githubAbout metadata.
+- [x] Pass full local pipeline, refresh screenshot, bump patch and push.
+
+Optional animal XP remains outside the required version-one completion scope.
+Actual child usability and balancing with participants remain unverified.
+Post-push gate: inspect actual verification, Pages and GHCR results and smoke-test
+this released version before reporting completion.
+
+Validation for this patch: 161 unit/integration tests and 14 real browser scenarios
+passed, including full enclosure construction, gate/facility placement, second
+adoption and keeper planting in Firefox and Chromium. Coverage is 99.59%
+statements, 98.05% branches, 99.13% functions and 99.75% lines. The production
+build and Docker smoke test passed. Independent supplementary reviews have no
+remaining confirmed blockers, and GitHub About metadata still matches. The source
+and audit are prepared for one verified patch commit; actual remote publication
+results are checked after pushing, before the final release report.

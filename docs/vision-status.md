@@ -1,4 +1,4 @@
-# Vision status and MVP scope
+# Vision implementation and validation
 
 Source: [Vision(1).md](<../Vision(1).md>). The current delivery target is the
 complete version-one vision, including live German/English switching, cute
@@ -29,7 +29,7 @@ reports and GitHub Actions runs.
 | 3, 40, 42        | No animal death, debt, premium currency, gambling, real-money purchases, multiplayer or violent events                                            | Simulation model and dependency/application design                                |
 
 New zoos begin on 12 × 12 tiles with an organically scattered rough outer area;
-older saves retain their existing dimensions. The admission interval is slower,
+older smaller saves gain the same starting space while preserving existing tiles. The admission interval is slower,
 and donation chances and goal rewards are smaller. Movement respects occupied
 tiles, care completes from beside the animal, and workers/families spawn on
 separate free cells. Player-facing speeds are 0.5×, 1× and 2×, with pause available.
@@ -70,7 +70,7 @@ emergency portions prevent a zero-coin dead end.
 | 26      | Ten concise rewarded goals, a visible next-task tutorial and detailed hover steps guide the loop; goal idempotence/UI tests.                                          |
 | 27      | School, birthday, sunny, family, photo and balloon events affect visits/mood/care and have visible props; event tests.                                                |
 | 28      | Original colorful procedural diorama, rounded figures and readable silhouettes; actual WebGL browser tests.                                                           |
-| 29      | Eating, sleeping, playing, swimming, petting, work, snacks, sitting, jumping, cheering and income feedback; animation tests.                                          |
+| 29      | Eating, sleeping, playing, swimming, petting, work, snacks, sitting, jumping, cheering and income coins flying to the HUD; animation tests.                           |
 | 30      | Icon-based economy, building, animals, staff, goals and settings; UI tests and short localized help.                                                                  |
 | 31      | Mouse selection/building, cancel, wheel zoom and camera buttons; browser/renderer tests.                                                                              |
 | 32      | Firefox and Chromium, static production build, ten-second autosave and validated recovery; browser/save tests.                                                        |
@@ -79,7 +79,7 @@ emergency portions prevent a zero-coin dead end.
 | 35      | Habitat/care planning and concise animal facts provide incidental learning; book UI tests.                                                                            |
 | 36      | Zoo book shows silhouettes/locks, names, habitats, foods and facts; book/reveal tests.                                                                                |
 | 37      | Starts small; goals, diversity, quality, amenities and expansion advance stars; progression tests.                                                                    |
-| 38      | Adoption triggers transporter, crate unloading and confetti with bounded lifetime; arrival/render tests.                                                              |
+| 38      | Adoption triggers transporter, crate delivery to the new animal, timed animal reveal and confetti with bounded lifetime; arrival/render tests.                        |
 | 39      | Five named MVP species, four MVP terrains, guest types, listed objects and core systems are present; catalog/UI/simulation tests.                                     |
 | 40      | No breeding, genetics, complex illness, death, debt, real purchases, multiplayer or complex schedules.                                                                |
 | 41      | Ticket, donation and snack income are tracked separately; shorter early visits and gentle arrivals; economy tests. Values remain playtest hypotheses.                 |
@@ -148,3 +148,31 @@ All version-one software requirements and the user's added feeding, traffic,
 guidance, tooltips, tutorial and music requests have implementation and regression
 evidence. Actual child usability and balancing with human participants remain
 unverified.
+
+## Follow-through audit (0.4.3)
+
+A fresh code and real-browser audit found gaps that the earlier acceptance flows
+had not covered. This patch adds a physical two-coin keeper planting action and fixes carer scheduling around unreachable/reserved
+animals, opposing keeper/guest traffic, stale care and goal panels, unsent backup
+text lost during settings updates, and tutorial credit awarded for empty actions.
+Identical terrain/fence operations no longer spend coins. Income now visibly
+flies into the HUD, newly adopted animals emerge as the crate opens, and bins/path
+litter use paper rather than animal-dropping shapes.
+
+The new growth browser scenario prepares only a clearing and earned coin budget,
+then uses actual world clicks and public build menus to place every fence edge,
+a gate, a new animal, feeder, trough, path, bench and popcorn stall, and reloads
+the resulting save. It exposed rapid-click suppression and fence models redirecting
+placement clicks, which are addressed by independent click handling and ground
+picking while a build tool is selected.
+
+The vision's illustrative scenes such as a goat nibbling decorations and a visitor crowd gathering around an arrival are not
+individually implemented. Their associated building/care, personality and arrival
+systems are present; these examples should not be claimed as observed behavior.
+Animal XP is an optional idea, not an unfinished version-one requirement. Actual
+child usability and balancing still need human participants.
+
+The `0.4.3` local completion gate passed: 161 unit/integration tests, 14
+Firefox/Chromium browser scenarios, production build and Docker smoke check.
+Coverage is 99.59% statements, 98.05% branches, 99.13% functions and 99.75% lines.
+The refreshed screenshot comes from the actual running WebGL application.

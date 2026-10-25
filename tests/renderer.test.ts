@@ -133,7 +133,7 @@ describe("original isometric procedural zoo", () => {
     const { game, renderer } = setup();
     const damaged = renderer.scene.getMeshByName("damaged-fence")!;
     expect(damaged.rotation.z).not.toBe(0);
-    expect(command(game, "repair", { x: 3, z: 4 })).toBe(true);
+    expect(command(game, "repair", { x: 3, z: 3 })).toBe(true);
     advance(game, 5);
     renderer.render();
     expect(game.counters.repaired).toBe(1);
@@ -148,7 +148,10 @@ describe("original isometric procedural zoo", () => {
     pick.pickedMesh = mesh;
     const event = new PointerEvent("pointerup", { button: 0 });
     renderer.scene.onPointerObservable.notifyObservers(
-      new PointerInfo(PointerEventTypes.POINTERPICK, event, pick),
+      new PointerInfo(PointerEventTypes.POINTERDOWN, event, pick),
+    );
+    renderer.scene.onPointerObservable.notifyObservers(
+      new PointerInfo(PointerEventTypes.POINTERUP, event, pick),
     );
     expect(select).toHaveBeenCalledWith({ x: 4, z: 2 });
     renderer.scene.onPointerObservable.notifyObservers(
@@ -156,17 +159,17 @@ describe("original isometric procedural zoo", () => {
     );
     renderer.scene.onPointerObservable.notifyObservers(
       new PointerInfo(
-        PointerEventTypes.POINTERPICK,
+        PointerEventTypes.POINTERUP,
         new PointerEvent("pointerup", { button: 2 }),
         pick,
       ),
     );
     const empty = new PickingInfo();
     renderer.scene.onPointerObservable.notifyObservers(
-      new PointerInfo(PointerEventTypes.POINTERPICK, event, empty),
+      new PointerInfo(PointerEventTypes.POINTERUP, event, empty),
     );
     renderer.scene.onPointerObservable.notifyObservers(
-      new PointerInfo(PointerEventTypes.POINTERPICK, event, null),
+      new PointerInfo(PointerEventTypes.POINTERUP, event, null),
     );
     expect(select).toHaveBeenCalledTimes(1);
   });
@@ -189,7 +192,14 @@ describe("original isometric procedural zoo", () => {
     expect(pick?.pickedMesh?.metadata.tile).toEqual({ x: 4, z: 2 });
     scene.onPointerObservable.notifyObservers(
       new PointerInfo(
-        PointerEventTypes.POINTERPICK,
+        PointerEventTypes.POINTERDOWN,
+        new PointerEvent("pointerdown", { button: 0 }),
+        pick,
+      ),
+    );
+    scene.onPointerObservable.notifyObservers(
+      new PointerInfo(
+        PointerEventTypes.POINTERUP,
         new PointerEvent("pointerup", { button: 0 }),
         pick,
       ),
@@ -848,4 +858,322 @@ test("food and water geometry reflects actual facility supplies and empty bowls 
   renderer.rebuild();
   expect(renderer.scene.getMeshByName("feeder-need-fruit")).toBeTruthy();
   expect(renderer.scene.getTransformNodeByName("empty-feeder")).toBeNull();
+});
+
+test("an adopted animal emerges where its delivery crate unloads without shrinking existing animals", () => {
+  let now = 0;
+  const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+  try {
+    const { game, renderer } = setup();
+    renderer.render();
+    const starter = renderer.scene.getTransformNodeByName(
+      `animal-${game.animals[0].id}`,
+    )!;
+    addAnimal(game, "goat", { x: 7, z: 7 });
+    const newcomer = game.animals.at(-1)!;
+    game.counters.adopted = 1;
+    renderer.render();
+    const figure = renderer.scene.getTransformNodeByName(
+      `animal-${newcomer.id}`,
+    )!;
+    expect(figure.scaling.x).toBe(0.001);
+    expect(starter.scaling.x).toBe(1);
+    expect(
+      renderer.scene
+        .getTransformNodeByName(`bubble-animal-${newcomer.id}`)!
+        .isEnabled(),
+    ).toBe(false);
+    for (let frame = 0; frame < 70; frame++) {
+      now += 50;
+      renderer.render();
+    }
+    const crate = renderer.scene.getMeshByName("arrival-crate")!;
+    expect(crate.position.x).toBe(newcomer.x);
+    expect(crate.position.z).toBe(newcomer.z);
+    expect(figure.scaling.x).toBeCloseTo(0.5, 5);
+    expect(figure.position.y).toBeGreaterThan(0.1);
+    for (let frame = 0; frame < 25; frame++) {
+      now += 50;
+      renderer.render();
+    }
+    expect(figure.scaling.x).toBe(1);
+    expect(starter.scaling.x).toBe(1);
+    expect(
+      figure
+        .getChildMeshes()
+        .every(
+          (mesh) =>
+            mesh.metadata.tile.x === newcomer.x &&
+            mesh.metadata.tile.z === newcomer.z,
+        ),
+    ).toBe(true);
+    expect(
+      renderer.scene
+        .getTransformNodeByName(`bubble-animal-${newcomer.id}`)!
+        .isEnabled(),
+    ).toBe(true);
+    // A friendly event can replace the celebration without leaving a hidden animal.
+    game.counters.eventIndex = 1;
+    game.counters.eventType = 0;
+    renderer.render();
+    expect(figure.scaling.x).toBe(1);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test("bins and paths show discarded paper while enclosure waste remains cartoon droppings", () => {
+  const { game, renderer } = setup();
+  tile(game, { x: 0, z: 0 }).object = "bin";
+  tile(game, { x: 0, z: 0 }).dirt = 3;
+  tile(game, { x: 2, z: 4 }).dirt = 2;
+  tile(game, { x: 4, z: 2 }).dirt = 1;
+  game.revision++;
+  renderer.render();
+  const papers = renderer.scene.meshes.filter(
+    (mesh) => mesh.name === "bin-paper",
+  );
+  expect(papers).toHaveLength(3);
+  expect(papers.every((mesh) => mesh.position.y >= 0.5)).toBe(true);
+  expect(
+    renderer.scene.meshes.filter((mesh) => mesh.name === "dropped-paper"),
+  ).toHaveLength(2);
+  const waste = renderer.scene.meshes.filter(
+    (mesh) => mesh.name === "cartoon-dropping",
+  );
+  expect(waste).toHaveLength(1);
+  expect(waste[0].metadata.tile).toEqual({ x: 4, z: 2 });
+  tile(game, { x: 0, z: 0 }).dirt = 0;
+  tile(game, { x: 2, z: 4 }).dirt = 0;
+  tile(game, { x: 4, z: 2 }).dirt = 0;
+  game.revision++;
+  renderer.render();
+  expect(renderer.scene.getMeshByName("bin-paper")).toBeNull();
+  expect(renderer.scene.getMeshByName("dropped-paper")).toBeNull();
+  expect(renderer.scene.getMeshByName("cartoon-dropping")).toBeNull();
+});
+
+test("rapid grid clicks each select a tile even when Babylon classifies the second as a double tap", () => {
+  const { renderer, select } = setup();
+  const tiles = renderer.scene.meshes.filter((mesh) => mesh.name === "tile");
+  for (const [index, mesh] of tiles.slice(0, 3).entries()) {
+    const pick = new PickingInfo();
+    pick.hit = true;
+    pick.pickedMesh = mesh;
+    renderer.scene.simulatePointerDown(pick, {
+      button: 0,
+      clientX: 10 + index,
+      clientY: 20,
+    });
+    renderer.scene.simulatePointerUp(
+      pick,
+      { button: 0, clientX: 10 + index, clientY: 20 },
+      index === 1,
+    );
+  }
+  expect(select.mock.calls.map(([point]) => point)).toEqual([
+    { x: 0, z: 0 },
+    { x: 1, z: 0 },
+    { x: 2, z: 0 },
+  ]);
+});
+
+test("dragging the camera never places an object even if released over a pickable tile", () => {
+  const { renderer, select } = setup();
+  const pick = new PickingInfo();
+  pick.hit = true;
+  pick.pickedMesh = renderer.scene.getMeshByName("animal-head");
+  renderer.scene.simulatePointerDown(pick, {
+    button: 0,
+    clientX: 10,
+    clientY: 20,
+  });
+  renderer.scene.simulatePointerMove(pick, {
+    button: 0,
+    clientX: 80,
+    clientY: 20,
+  });
+  // Returning to the original point still counts as a drag.
+  renderer.scene.simulatePointerUp(pick, {
+    button: 0,
+    clientX: 10,
+    clientY: 20,
+  });
+  expect(select).not.toHaveBeenCalled();
+  renderer.scene.simulatePointerDown(pick, {
+    button: 0,
+    clientX: 10,
+    clientY: 20,
+  });
+  renderer.scene.simulatePointerUp(pick, {
+    button: 0,
+    clientX: 20,
+    clientY: 20,
+  });
+  expect(select).not.toHaveBeenCalled();
+  renderer.scene.simulatePointerDown(pick, {
+    button: 0,
+    clientX: 10,
+    clientY: 20,
+  });
+  renderer.scene.simulatePointerUp(pick, {
+    button: 0,
+    clientX: 12,
+    clientY: 20,
+  });
+  expect(select).toHaveBeenCalledOnce();
+});
+
+test("a release over the zoo without a preceding canvas press never selects or builds", () => {
+  const { renderer, select } = setup();
+  const pick = new PickingInfo();
+  pick.hit = true;
+  pick.pickedMesh = renderer.scene.getMeshByName("animal-head");
+  renderer.scene.simulatePointerUp(pick, {
+    button: 0,
+    clientX: 10,
+    clientY: 20,
+  });
+  expect(select).not.toHaveBeenCalled();
+});
+
+test("placement picks the real ground behind fence rails while inspection still selects the visible object", () => {
+  const { renderer, engine, select } = setup();
+  renderer.render();
+  const scene = renderer.scene;
+  const viewport = scene.activeCamera!.viewport.toGlobal(
+    engine.getRenderWidth(),
+    engine.getRenderHeight(),
+  );
+  const obstruction = scene.meshes
+    .filter((mesh) => mesh.name === "fence-rail")
+    .map((mesh) => {
+      const screen = Vector3.Project(
+        mesh.getAbsolutePosition(),
+        Matrix.Identity(),
+        scene.getTransformMatrix(),
+        viewport,
+      );
+      const normal = scene.pick(screen.x, screen.y);
+      const floor = scene.pick(
+        screen.x,
+        screen.y,
+        (candidate) => candidate.name === "tile",
+      );
+      return { screen, normal, floor };
+    })
+    .find(
+      ({ normal, floor }) =>
+        normal?.pickedMesh &&
+        floor?.pickedMesh &&
+        JSON.stringify(normal.pickedMesh.metadata.tile) !==
+          JSON.stringify(floor.pickedMesh.metadata.tile),
+    )!;
+  expect(obstruction).toBeDefined();
+  scene.pointerX = obstruction.screen.x;
+  scene.pointerY = obstruction.screen.y;
+  scene.simulatePointerDown(obstruction.normal!, { button: 0 });
+  scene.simulatePointerUp(obstruction.normal!, { button: 0 });
+  expect(select).toHaveBeenLastCalledWith(
+    obstruction.normal!.pickedMesh!.metadata.tile,
+  );
+  renderer.setPlacementMode(true);
+  scene.simulatePointerDown(obstruction.normal!, { button: 0 });
+  scene.simulatePointerUp(obstruction.normal!, { button: 0 }, true);
+  expect(select).toHaveBeenLastCalledWith(
+    obstruction.floor!.pickedMesh!.metadata.tile,
+  );
+  renderer.setPlacementMode(false);
+  scene.simulatePointerDown(obstruction.normal!, { button: 0 });
+  scene.simulatePointerUp(obstruction.normal!, { button: 0 });
+  expect(select).toHaveBeenLastCalledWith(
+    obstruction.normal!.pickedMesh!.metadata.tile,
+  );
+});
+
+test("importing another zoo cancels a pending reveal and restores reused animal IDs", () => {
+  const { game, renderer } = setup();
+  renderer.render();
+  addAnimal(game, "goat", { x: 7, z: 7 });
+  game.counters.adopted = 1;
+  renderer.render();
+  const id = game.animals.at(-1)!.id;
+  expect(renderer.scene.getTransformNodeByName(`animal-${id}`)!.scaling.x).toBe(
+    0.001,
+  );
+  // Imports replace the animal collection even if the counters and IDs match.
+  game.animals = game.animals.map((animal) => ({
+    ...animal,
+    species: "rabbit",
+  }));
+  renderer.rebuild();
+  renderer.render();
+  expect(renderer.scene.getTransformNodeByName(`animal-${id}`)!.scaling.x).toBe(
+    1,
+  );
+  expect(renderer.scene.getTransformNodeByName("celebration")).toBeNull();
+});
+
+test("an unloading crate follows a newcomer that moves before its reveal", () => {
+  let now = 0;
+  const clock = vi.spyOn(performance, "now").mockImplementation(() => now);
+  try {
+    const { game, renderer } = setup();
+    renderer.render();
+    addAnimal(game, "goat", { x: 7, z: 7 });
+    game.counters.adopted = 1;
+    renderer.render();
+    const newcomer = game.animals.at(-1)!;
+    newcomer.x = 8;
+    for (let frame = 0; frame < 70; frame++) {
+      now += 50;
+      renderer.render();
+    }
+    const figure = renderer.scene.getTransformNodeByName(
+      `animal-${newcomer.id}`,
+    )!;
+    const crate = renderer.scene.getMeshByName("arrival-crate")!;
+    expect(crate.position.x).toBeCloseTo(figure.position.x, 6);
+    expect(crate.position.z).toBeCloseTo(figure.position.z, 6);
+    expect(crate.position.x).toBeGreaterThan(7.9);
+  } finally {
+    clock.mockRestore();
+  }
+});
+
+test("planting shows the keeper's spade and sapling thought before real flowers appear", () => {
+  const { game, renderer } = setup();
+  game.coins = 2;
+  const garden = { x: 2, z: 6 };
+  tile(game, garden).object = "";
+  expect(command(game, "plant", garden)).toBe(true);
+  advance(game, 0.75);
+  renderer.render();
+  expect(game.keeper.task?.kind).toBe("plant");
+  expect(
+    renderer.scene.getTransformNodeByName("tool-keeper")!.isEnabled(),
+  ).toBe(true);
+  expect(renderer.scene.getMeshByName("need-plant")!.isEnabled()).toBe(true);
+  expect(renderer.scene.getMeshByName("flower")).toBeNull();
+  advance(game, 3);
+  renderer.render();
+  expect(tile(game, garden).object).toBe("flowers");
+  expect(renderer.scene.getMeshByName("flower")!.metadata.tile).toEqual(garden);
+  expect(
+    renderer.scene.getTransformNodeByName("tool-keeper")!.isEnabled(),
+  ).toBe(false);
+  expect(renderer.scene.getMeshByName("need-plant")).toBeNull();
+});
+
+test("initial framing preserves the fixed isometric angles and radius while centering the zoo", () => {
+  const { renderer } = setup();
+  renderer.render();
+  const camera = renderer.scene.activeCamera as ArcRotateCamera;
+  expect(camera.alpha).toBe(-Math.PI / 4);
+  expect(camera.beta).toBe(Math.atan(Math.sqrt(2)));
+  expect(camera.radius).toBe(18);
+  expect(camera.target.asArray()).toEqual([4.5, 0, 4.5]);
+  renderer.rebuild();
+  renderer.render();
+  expect(camera.alpha).toBe(-Math.PI / 4);
 });

@@ -49,6 +49,10 @@ pace, and donations and goal rewards support steady growth rather than a flood o
 coins. Keepers stop beside animals to care for them, and moving figures wait or
 find a clear route instead of sharing a tile.
 
+Select an empty tile and choose **Plant flowers · 2** to send your keeper to
+plant there. Coins are refunded if that plot becomes occupied before the work
+finishes. Carers skip unreachable animals and reserve each delivery once.
+
 Use the mouse to select objects and place buildings. Camera buttons provide zoom
 and rotation. Follow the short goals for the first steps. Animals never die from
 management mistakes, and there are no purchases with real money or game-over debts.

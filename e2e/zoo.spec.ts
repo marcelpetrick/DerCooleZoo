@@ -231,3 +231,124 @@ test("the tutorial explains growth tasks and songs can be skipped and saved", as
   await page.locator('[data-action="settings"]').click();
   await expect(page.locator(".song-picker")).toContainText("2 / 5");
 });
+
+// The fixed orthographic camera projects tile centres into the actual canvas.
+// This drives real pointer picking without exposing a test-only application API.
+async function clickWorldTile(
+  page: import("@playwright/test").Page,
+  x: number,
+  z: number,
+) {
+  const canvas = await page.locator("#world").boundingBox();
+  if (!canvas) throw new Error("The zoo canvas is unavailable");
+  const pixels = canvas.height / 12.8;
+  await page.mouse.click(
+    canvas.x + canvas.width / 2 + ((x + z - 9) / Math.SQRT2) * pixels,
+    canvas.y +
+      canvas.height / 2 +
+      ((x - z) / Math.sqrt(6) - 0.06 * Math.sqrt(2 / 3)) * pixels,
+  );
+}
+
+test("grow the zoo by fencing a new enclosure, adding a gate and adopting a second animal", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+  await page.locator('[data-action="start"]').click();
+  await page.locator('[data-action="settings"]').click();
+  await page.locator('[data-action="export"]').click();
+  const setup = JSON.parse(
+    await page.getByRole("textbox", { name: "Save data" }).inputValue(),
+  );
+  // Start from a prepared clearing and earned budget; every construction action
+  // below still uses the public build tools and real world-tile pointer picking.
+  setup.coins = 300;
+  setup.paused = true;
+  setup.tiles[6 * setup.size + 2].object = "";
+  for (let z = 0; z <= 6; z++) {
+    for (let x = 6; x <= 10; x++) {
+      const cell = setup.tiles[z * setup.size + x];
+      if (!["path", "entrance"].includes(cell.object)) cell.object = "";
+    }
+  }
+  await page
+    .getByRole("textbox", { name: "Save data" })
+    .fill(JSON.stringify(setup));
+  await page.locator('[data-action="import"]').click();
+  await page.locator('[data-action="tab:build"]').click();
+  await page.locator('[data-action="category:fences"]').click();
+  await page.locator('[data-action="tool:fence:fence"]').click();
+  let coins = 300;
+  const placeEdge = async (ax: number, az: number, bx: number, bz: number) => {
+    await clickWorldTile(page, ax, az);
+    await expect(page.getByRole("status")).toContainText(/neighbor/i);
+    await clickWorldTile(page, bx, bz);
+    await expect(page.getByTestId("coins")).toHaveText(String(--coins));
+  };
+  for (let x = 7; x <= 9; x++) {
+    await placeEdge(x, 1, x, 0);
+    await placeEdge(x, 3, x, 4);
+  }
+  for (let z = 1; z <= 3; z++) {
+    await placeEdge(7, z, 6, z);
+    await placeEdge(9, z, 10, z);
+  }
+  await page.locator('[data-action="tool:fence:gate"]').click();
+  await placeEdge(8, 3, 8, 4);
+  await page.locator('[data-action="tab:animals"]').click();
+  await page.locator('[data-action="tool:animal:goat"]').click();
+  await clickWorldTile(page, 8, 2);
+  await expect(page.getByRole("status")).toContainText(/arriv/i);
+  await page.locator('[data-action="tab:build"]').click();
+  await page.locator('[data-action="category:objects"]').click();
+  await page.locator('[data-action="tool:build:feeder"]').click();
+  await clickWorldTile(page, 7, 2);
+  await page.locator('[data-action="tool:build:trough"]').click();
+  await clickWorldTile(page, 9, 2);
+  await page.locator('[data-action="tool:build:bench"]').click();
+  await clickWorldTile(page, 8, 5);
+  await page.locator('[data-action="category:paths"]').click();
+  await page.locator('[data-action="tool:build:path"]').click();
+  await clickWorldTile(page, 8, 4);
+  await page.locator('[data-action="category:shops"]').click();
+  await page.locator('[data-action="tool:build:popcorn"]').click();
+  await clickWorldTile(page, 9, 4);
+  await page.locator('[data-action="settings"]').click();
+  await page.locator('[data-action="save"]').click();
+  const built = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("dercoolezoo.save.v1")!),
+  );
+  expect(built.animals).toHaveLength(2);
+  expect(built.animals[1]).toMatchObject({ species: "goat", x: 8, z: 2 });
+  for (const [x, z, object] of [
+    [7, 2, "feeder"],
+    [9, 2, "trough"],
+    [8, 5, "bench"],
+    [8, 4, "path"],
+    [9, 4, "popcorn"],
+  ] as const) {
+    expect(built.tiles[z * built.size + x].object).toBe(object);
+  }
+  expect(built.fences["8,3|8,4"]).toBe("gate");
+  expect(built.coins).toBeLessThan(300);
+  await page.locator('[data-action="tab:inspect"]').click();
+  await clickWorldTile(page, 2, 6);
+  await page.locator('[data-action="care:plant"]').click();
+  await expect(page.locator("#keeper-status")).toContainText(/plant/i);
+  await page.locator('[data-action="pause"]').click();
+  await expect(page.locator("#keeper-status")).toContainText("Ready", {
+    timeout: 15000,
+  });
+  await page.locator('[data-action="settings"]').click();
+  await page.locator('[data-action="save"]').click();
+  const planted = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("dercoolezoo.save.v1")!),
+  );
+  expect(planted.tiles[6 * planted.size + 2].object).toBe("flowers");
+  expect(planted.counters.plant).toBe(1);
+  await page.reload();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

@@ -821,3 +821,253 @@ test("next song immediately cycles through five tracks and preserves selection o
   expect(app.game.counters.musicTrack).toBe(0);
   expect(root.querySelector(".song-picker")!.textContent).toContain("1 / 5");
 });
+
+test("care hints update when thirst crosses its threshold and animals consume feeder stock", () => {
+  const { app, root, click } = setup();
+  app.game.animals[0].water = 71;
+  app.game.counters["feeder3z2.greens"] = 3;
+  click("findAnimal");
+  expect(root.querySelector(".care-hint")!.textContent).not.toContain(
+    "Thirsty",
+  );
+  expect(
+    root.querySelector('[data-action="refillAnimal"]')!.textContent,
+  ).toContain("3");
+  app.game.animals[0].water = 69;
+  app.game.counters["feeder3z2.greens"] = 2;
+  app.step(0);
+  expect(root.querySelector(".care-hint")!.textContent).toContain("Thirsty");
+  expect(
+    root.querySelector('[data-action="refillAnimal"]')!.textContent,
+  ).toContain("2");
+  app.game.animals[0].water = 90;
+  app.step(0);
+  expect(root.querySelector(".care-hint")!.textContent).not.toContain(
+    "Thirsty",
+  );
+});
+
+test("open tutorial details survive completed goals and background work updates", () => {
+  const { app, root, click } = setup();
+  click("goals");
+  const first = root.querySelector<HTMLDetailsElement>(
+    '[data-help="goal:clear"]',
+  )!;
+  first.open = true;
+  app.game.goals.push("clear");
+  app.step(0);
+  expect(root.querySelector(".goal")!.classList.contains("complete")).toBe(
+    true,
+  );
+  expect(
+    root.querySelector<HTMLDetailsElement>('[data-help="goal:clear"]')!.open,
+  ).toBe(true);
+  click("help");
+  root.querySelector<HTMLDetailsElement>('[data-help="help:care"]')!.open =
+    true;
+  app.game.keeper.task = {
+    kind: "walk",
+    target: { x: 2, z: 4 },
+    route: [],
+    animal: 0,
+    progress: 0,
+    carrying: "",
+  };
+  app.step(0);
+  expect(
+    root.querySelector<HTMLDetailsElement>('[data-help="help:care"]')!.open,
+  ).toBe(true);
+});
+
+test("save data survives settings actions and unrelated controls", () => {
+  const { root, click } = setup();
+  click("settings");
+  const backup = '{"my":"backup text to copy"}';
+  root.querySelector<HTMLTextAreaElement>("#save-data")!.value = backup;
+  for (const action of [
+    "save",
+    "nextSong",
+    "pause",
+    "speed",
+    "language:de",
+    "language:en",
+  ]) {
+    click(action);
+    expect(
+      root.querySelector<HTMLTextAreaElement>("#save-data")!.value,
+      action,
+    ).toBe(backup);
+  }
+});
+
+test("friendly event announcements remain visible while tickets and donations arrive", () => {
+  const { app, root } = setup();
+  startEvent(app.game, "birthday");
+  app.game.event = "coin";
+  app.step(0);
+  expect(root.querySelector("#zoo-event")!.textContent).toContain("birthday");
+  app.game.time += 21;
+  app.step(0);
+  expect(root.querySelector("#zoo-event")!.textContent).toContain("coin");
+});
+
+test("earned coins fly to the actual counter and animations clean up on expiry and disposal", () => {
+  vi.useFakeTimers();
+  const { app, root } = setup();
+  vi.spyOn(
+    root.querySelector("canvas")!,
+    "getBoundingClientRect",
+  ).mockReturnValue({ left: 400, top: 0, width: 800, height: 600 } as DOMRect);
+  vi.spyOn(
+    root.querySelector('[data-testid="coins"]')!,
+    "getBoundingClientRect",
+  ).mockReturnValue({ left: 420, top: 30, width: 40, height: 20 } as DOMRect);
+  app.game.income.tickets = 1;
+  app.step(0);
+  const flight = root.querySelector<HTMLElement>(".income-flight")!;
+  expect(flight.style.getPropertyValue("--coin-to-x")).toBe("440px");
+  expect(flight.style.getPropertyValue("--coin-to-y")).toBe("40px");
+  expect(flight.style.getPropertyValue("--coin-from-x")).toBe("840px");
+  app.game.income.tickets = 2;
+  app.step(0);
+  expect(flight.isConnected).toBe(false);
+  expect(root.querySelectorAll(".income-flight")).toHaveLength(1);
+  vi.advanceTimersByTime(700);
+  expect(root.querySelector(".income-flight")).toBeNull();
+  app.game.income.tickets = 0;
+  app.step(0);
+  expect(root.querySelector(".income-flight")).toBeNull();
+  app.game.income.tickets = 1;
+  app.step(0);
+  expect(root.querySelector(".income-flight")).toBeTruthy();
+  app.dispose();
+  resources.pop();
+  expect(root.querySelector(".income-flight")).toBeNull();
+  vi.advanceTimersByTime(700);
+  vi.useRealTimers();
+});
+
+test("repair targets the damaged rail and empty care actions are not offered", () => {
+  const { app, root } = setup();
+  tile(app.game, { x: 2, z: 7 }).object = "bench";
+  app.select({ x: 2, z: 7 });
+  for (const action of ["care:clear", "care:clean", "care:repair"])
+    expect(root.querySelector(`[data-action="${action}"]`)).toBeNull();
+  app.action("repairStarter");
+  expect(app.game.keeper.task?.target).toEqual({ x: 3, z: 3 });
+  advance(app.game, 12);
+  app.step(0);
+  expect(app.game.counters.repaired).toBe(1);
+  app.select({ x: 3, z: 3 });
+  expect(root.querySelector('[data-action="care:repair"]')).toBeNull();
+  app.action("repairStarter");
+  expect(app.game.keeper.task?.kind).not.toBe("repair");
+});
+
+test("animal cleaning follows enclosure waste after the animal has walked away", () => {
+  const { app, root, click } = setup();
+  app.game.counters["feeder3z2.greens"] = 0;
+  app.game.animals[0].hunger = 100;
+  app.game.animals[0].x = 3;
+  app.game.animals[0].z = 1;
+  click("findAnimal");
+  expect(
+    root.querySelector<HTMLButtonElement>('[data-action="care:clean"]')!
+      .disabled,
+  ).toBe(true);
+  tile(app.game, { x: 4, z: 2 }).dirt = 1;
+  app.step(0);
+  expect(
+    root.querySelector<HTMLButtonElement>('[data-action="care:clean"]')!
+      .disabled,
+  ).toBe(false);
+  click("care:clean");
+  expect(app.game.keeper.task?.target).toEqual({ x: 4, z: 2 });
+  advance(app.game, 12);
+  app.step(0);
+  expect(tile(app.game, { x: 4, z: 2 }).dirt).toBe(0);
+  expect(
+    root.querySelector<HTMLButtonElement>('[data-action="care:clean"]')!
+      .disabled,
+  ).toBe(true);
+});
+
+test("selected tile actions and tutorial income refresh after autonomous changes", () => {
+  const { app, root, click } = setup();
+  tile(app.game, { x: 2, z: 7 }).object = "litter";
+  app.select({ x: 2, z: 7 });
+  expect(root.querySelector('[data-action="care:clean"]')).toBeTruthy();
+  tile(app.game, { x: 2, z: 7 }).object = "";
+  app.step(0);
+  expect(root.querySelector('[data-action="care:clean"]')).toBeNull();
+  click("goals");
+  app.game.income.sales = 17;
+  app.step(0);
+  expect(root.querySelector(".income")!.textContent).toContain("Sales: 17");
+  startEvent(app.game, "birthday");
+  app.game.time += 21;
+  app.step(0);
+  expect(root.querySelector("#zoo-event")!.textContent).not.toContain(
+    "birthday",
+  );
+});
+
+test("placement uses ground picking while inspect and cancellation restore object picking", () => {
+  const { app, root, click } = setup();
+  const placement = vi.spyOn(app.renderer, "setPlacementMode");
+  click("tab:build");
+  click("category:objects");
+  click("tool:build:bench");
+  expect(placement).toHaveBeenLastCalledWith(true);
+  root
+    .querySelector("canvas")!
+    .dispatchEvent(new MouseEvent("contextmenu", { cancelable: true }));
+  expect(placement).toHaveBeenLastCalledWith(false);
+  click("category:fences");
+  click("tool:fence:fence");
+  expect(placement).toHaveBeenLastCalledWith(true);
+  click("tab:inspect");
+  expect(placement).toHaveBeenLastCalledWith(false);
+  click("tab:build");
+  click("category:objects");
+  click("tool:build:bench");
+  root.dispatchEvent(
+    new KeyboardEvent("keydown", { key: "Escape", bubbles: true }),
+  );
+  expect(placement).toHaveBeenLastCalledWith(false);
+});
+
+test("planting replaces an empty-tile walk, charges once and shows flowers only after keeper work", () => {
+  const { app, root, click } = setup();
+  const target = { x: 2, z: 6 };
+  tile(app.game, target).object = "";
+  app.select(target);
+  expect(
+    root.querySelector<HTMLButtonElement>('[data-action="care:plant"]')!
+      .disabled,
+  ).toBe(true);
+  app.game.coins = 2;
+  app.step(0);
+  expect(
+    root.querySelector<HTMLButtonElement>('[data-action="care:plant"]')!
+      .disabled,
+  ).toBe(false);
+  expect(
+    root.querySelector('[data-action="care:plant"]')!.getAttribute("title"),
+  ).toContain("2 coins");
+  click("care:plant");
+  expect(app.game.keeper.task?.kind).toBe("plant");
+  expect(app.game.coins).toBe(0);
+  expect(tile(app.game, target).object).toBe("");
+  advance(app.game, 12);
+  app.step(0);
+  expect(tile(app.game, target).object).toBe("flowers");
+  expect(app.game.counters.plant).toBe(1);
+  expect(root.querySelector('[data-action="care:plant"]')).toBeNull();
+  app.action("language:de");
+  tile(app.game, { x: 2, z: 7 }).object = "";
+  app.select({ x: 2, z: 7 });
+  expect(
+    root.querySelector('[data-action="care:plant"]')!.textContent,
+  ).toContain("Blumen pflanzen");
+});

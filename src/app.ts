@@ -20,11 +20,15 @@ import {
   build,
   buyFood,
   command,
+  canRepair,
+  canPlant,
+  repairPoint,
   createGame,
   emergencyFood,
   expand,
   fence,
   feederStock,
+  friendlyEvents,
   waterStock,
   goalIds,
   habitat,
@@ -101,7 +105,8 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     disposed = false;
   let panelTask = game.keeper.task,
     panelStars = game.stars,
-    panelCareStatus = "";
+    panelCareStatus = "",
+    panelGoals = "";
   let currentSound = "welcome",
     soundSequence = 0,
     lastAnimalSound = 0,
@@ -184,6 +189,11 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
       const animal = getSpecies(toolId);
       return `${tr("animal." + toolId)}. ${tr("tip.adopt")} ${animal.space} ${tr("ui.space")}, ${tr("terrain." + animal.terrain)}, ${tr("food." + animal.food)}. ${animal.cost} ${tr("ui.coins")}.`;
     }
+    if (
+      (kind === "repairStarter" || (kind === "care" && id === "repair")) &&
+      !canRepair(game, repairPoint)
+    )
+      return tr("tip.repairDone");
     if (kind === "care") {
       const friend = selectedAnimal();
       return `${tr("tip." + id)}${friend && id === "feed" ? " " + tr("food." + getSpecies(friend.species).food) + "." : ""}`;
@@ -265,6 +275,10 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
   }
   let saveResult: boolean | null = null;
   function renderPanel() {
+    const backup = root.querySelector<HTMLTextAreaElement>("#save-data")?.value;
+    const expanded = [
+      ...root.querySelectorAll<HTMLDetailsElement>("details[open][data-help]"),
+    ].map((element) => element.dataset.help);
     renderNav();
     const panel = root.querySelector("#panel")!;
     if (tab === "inspect") {
@@ -275,6 +289,10 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
       if (a) {
         const s = getSpecies(a.species),
           h = habitat(game, a);
+        const dirty = enclosure(a, game.size, game.fences).some(
+          (point) =>
+            tile(game, point).dirt > 0 || tile(game, point).object === "litter",
+        );
         const feeder = enclosure(a, game.size, game.fences).find(
           (p) => tile(game, p).object === "feeder",
         );
@@ -287,12 +305,12 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
           )
           .join(
             "",
-          )}</div></div><div class="action-grid care-actions">${actionButton("care:pet", `💗 ${tr("ui.pet")}`)}${actionButton("care:clean", `🧹 ${tr("ui.clean")}`)}</div>`;
+          )}</div></div><div class="action-grid care-actions">${actionButton("care:pet", `💗 ${tr("ui.pet")}`)}${actionButton("care:clean", `🧹 ${tr("ui.clean")}`, dirty ? "" : "disabled")}</div>`;
       } else if (selected) {
         const object = tile(game, selected).object;
-        panel.innerHTML += `<div class="selection ${["feeder", "trough"].includes(object) ? "care-object" : ""}"><h3>${object ? tr("building." + object) : tr("terrain." + tile(game, selected).terrain)}</h3><p>${selected.x + 1} · ${selected.z + 1}</p><div class="action-grid">${actionButton("care:walk", `👣 ${tr("ui.walk")}`)}${actionButton("care:clear", `🌱 ${tr("ui.clear")}`)}${actionButton("care:clean", `🧹 ${tr("ui.clean")}`)}${actionButton("care:repair", `🔧 ${tr("ui.repair")}`)}</div></div>`;
+        panel.innerHTML += `<div class="selection ${["feeder", "trough"].includes(object) ? "care-object" : ""}"><h3>${object ? tr("building." + object) : tr("terrain." + tile(game, selected).terrain)}</h3><p>${selected.x + 1} · ${selected.z + 1}</p><div class="action-grid">${actionButton("care:walk", `👣 ${tr("ui.walk")}`)}${canPlant(game, selected) ? actionButton("care:plant", `🌼 ${tr("ui.plant")} · 2 🪙`, game.coins < 2 ? "disabled" : "") : ""}${["weed", "rock", "stump", "tree"].includes(object) ? actionButton("care:clear", `🌱 ${tr("ui.clear")}`) : ""}${tile(game, selected).dirt > 0 || object === "litter" ? actionButton("care:clean", `🧹 ${tr("ui.clean")}`) : ""}${canRepair(game, selected) ? actionButton("care:repair", `🔧 ${tr("ui.repair")}`) : ""}</div></div>`;
       } else
-        panel.innerHTML += `<div class="intro-steps"><h3>${tr("ui.start")}</h3><p>1. ${tr("goal.clear")}</p><p>2. ${tr("goal.repair")}</p><p>3. ${tr("goal.feed")}</p><p>4. ${tr("goal.open")}</p></div><div class="action-grid">${actionButton("findAnimal", `🐰 ${tr("ui.animals")}`)}${actionButton("findWeed", `🌱 ${tr("ui.clear")}`)}${actionButton("repairStarter", `🔧 ${tr("ui.repair")}`)}</div>`;
+        panel.innerHTML += `<div class="intro-steps"><h3>${tr("ui.start")}</h3><p>1. ${tr("goal.clear")}</p><p>2. ${tr("goal.repair")}</p><p>3. ${tr("goal.feed")}</p><p>4. ${tr("goal.open")}</p></div><div class="action-grid">${actionButton("findAnimal", `🐰 ${tr("ui.animals")}`)}${actionButton("findWeed", `🌱 ${tr("ui.clear")}`)}${actionButton("repairStarter", `🔧 ${tr("ui.repair")}`, canRepair(game, repairPoint) ? "" : "disabled")}</div>`;
       if (
         selected &&
         !a &&
@@ -398,7 +416,7 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     if (tab === "goals")
       panel.innerHTML =
         title("ui.goals", "✨") +
-        `<div class="goal-list">${goalIds.map((id) => `<div class="goal ${game.goals.includes(id) ? "complete" : ""}" tabindex="0" title="${tr("steps." + id)}" aria-description="${tr("steps." + id)}"><span>${game.goals.includes(id) ? "✓" : "○"}</span><span>${tr("goal." + id)}</span><details><summary>${tr("ui.moreHelp")}</summary><p>${tr("steps." + id)}</p></details></div>`).join("")}</div><div class="income"><p>🎟️ ${tr("ui.tickets")}: ${game.income.tickets}</p><p>💝 ${tr("ui.donations")}: ${game.income.donations}</p><p>🍿 ${tr("ui.sales")}: ${game.income.sales}</p></div>`;
+        `<div class="goal-list">${goalIds.map((id) => `<div class="goal ${game.goals.includes(id) ? "complete" : ""}" tabindex="0" title="${tr("steps." + id)}" aria-description="${tr("steps." + id)}"><span>${game.goals.includes(id) ? "✓" : "○"}</span><span>${tr("goal." + id)}</span><details data-help="goal:${id}"><summary>${tr("ui.moreHelp")}</summary><p>${tr("steps." + id)}</p></details></div>`).join("")}</div><div class="income"><p>🎟️ ${tr("ui.tickets")}: ${game.income.tickets}</p><p>💝 ${tr("ui.donations")}: ${game.income.donations}</p><p>🍿 ${tr("ui.sales")}: ${game.income.sales}</p></div>`;
     if (tab === "book")
       panel.innerHTML =
         title("ui.book", "📖") +
@@ -406,13 +424,54 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     if (tab === "help")
       panel.innerHTML =
         title("ui.help", "🌱", tr("help.intro")) +
-        `<div class="help-topics">${["care", "paths", "booths", "fences", "habitat", "saves"].map((topic, index) => `<article class="help-topic"><h3>${["🥕", "👣", "🍿", "🪵", "🐾", "💾"][index]} ${tr("help." + topic + ".title")}</h3><p>${tr("help." + topic + ".short")}</p><details><summary>${tr("ui.moreHelp")}</summary><p>${tr("help." + topic + ".body")}</p></details></article>`).join("")}</div>`;
+        `<div class="help-topics">${["care", "paths", "booths", "fences", "habitat", "saves"].map((topic, index) => `<article class="help-topic"><h3>${["🥕", "👣", "🍿", "🪵", "🐾", "💾"][index]} ${tr("help." + topic + ".title")}</h3><p>${tr("help." + topic + ".short")}</p><details data-help="help:${topic}"><summary>${tr("ui.moreHelp")}</summary><p>${tr("help." + topic + ".body")}</p></details></article>`).join("")}</div>`;
     if (tab === "settings")
       panel.innerHTML =
         title("ui.settings", "⚙") +
         languageChoices() +
         `<label class="setting">${tr("ui.sound")}<input data-input="sound" aria-label="${tr("ui.sound")}" type="range" min="0" max="1" step="0.1" value="${game.sound}"/></label><label class="setting">${tr("ui.music")}<input data-input="music" aria-label="${tr("ui.music")}" type="range" min="0" max="1" step="0.1" value="${game.music}"/></label><div class="song-picker"><span>${tr("ui.song")} ${(game.counters.musicTrack ?? 0) + 1} / ${musicTracksCount}</span>${actionButton("nextSong", `♫ ${tr("ui.nextSong")}`)}</div><div class="action-grid">${actionButton("save", "💾 " + tr("ui.save"))}${actionButton("export", "↗ " + tr("ui.export"))}${actionButton("import", "↙ " + tr("ui.import"))}${actionButton("reset", "🌱 " + tr("ui.newGame"))}</div><label class="setting">${tr("ui.saveData")}<textarea id="save-data" rows="5" spellcheck="false" aria-label="${tr("ui.saveData")}"></textarea></label><p class="note">${tr("ui.resetHint")}</p>`;
+    if (tab === "settings" && backup !== undefined)
+      root.querySelector<HTMLTextAreaElement>("#save-data")!.value = backup;
+    root
+      .querySelectorAll<HTMLDetailsElement>("details[data-help]")
+      .forEach((element) => {
+        element.open = expanded.includes(element.dataset.help);
+      });
     decorateHelp();
+  }
+  let coinTimer: number | null = null;
+  function showIncomeCoin() {
+    root.querySelector(".income-flight")?.remove();
+    if (coinTimer !== null) window.clearTimeout(coinTimer);
+    const counter = root
+      .querySelector('[data-testid="coins"]')!
+      .getBoundingClientRect();
+    const world = canvas.getBoundingClientRect();
+    const coin = document.createElement("span");
+    coin.className = "income-flight";
+    coin.textContent = "🪙";
+    coin.setAttribute("aria-hidden", "true");
+    coin.style.setProperty(
+      "--coin-from-x",
+      `${world.left + world.width * 0.55}px`,
+    );
+    coin.style.setProperty(
+      "--coin-from-y",
+      `${world.top + world.height * 0.5}px`,
+    );
+    coin.style.setProperty(
+      "--coin-to-x",
+      `${counter.left + counter.width * 0.5}px`,
+    );
+    coin.style.setProperty(
+      "--coin-to-y",
+      `${counter.top + counter.height * 0.5}px`,
+    );
+    root.append(coin);
+    coinTimer = window.setTimeout(() => {
+      coin.remove();
+      coinTimer = null;
+    }, 700);
   }
   function update() {
     if (game.goals.length > lastGoals) cue("goal");
@@ -445,14 +504,16 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
       root.querySelector("#ticket-feedback")!.textContent =
         `${tr(game.ticket < attractiveness(game) ? "ui.priceCheap" : game.ticket === attractiveness(game) ? "ui.priceFair" : game.ticket <= attractiveness(game) * 1.5 ? "ui.priceHigh" : "ui.priceExpensive")} · ${tr("ui.recommended")}: ${attractiveness(game)} 🪙`;
     }
+    renderer.setPlacementMode(tool !== null);
     canvas.style.cursor = tool ? "crosshair" : "pointer";
     if (panelTask && !game.keeper.task) cue("done");
     const income =
       game.income.tickets + game.income.donations + game.income.sales;
-    if (income !== lastIncome) {
+    if (income > lastIncome) {
       cue("coin");
-      lastIncome = income;
+      showIncomeCoin();
     }
+    lastIncome = income;
     if (started && game.time - lastAnimalSound >= 15) {
       cue(
         "animal:" +
@@ -463,13 +524,28 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     }
 
     const selectedFriend = selectedAnimal();
+    const food = selectedFriend
+      ? getSpecies(selectedFriend.species).food
+      : undefined;
     const careStatus = selectedFriend
-      ? `${selectedFriend.id}:${selectedFriend.hunger < 70}:${game.inventory[getSpecies(selectedFriend.species).food]}:${game.counters.refill ?? 0}:${game.counters.refillWater ?? 0}`
+      ? `${selectedFriend.id}:${selectedFriend.hunger < 70}:${selectedFriend.water < 70}:${game.inventory[food!]}:${enclosure(
+          selectedFriend,
+          game.size,
+          game.fences,
+        )
+          .filter((point) => tile(game, point).object === "feeder")
+          .map((point) => feederStock(game, point, food))
+          .join(
+            ",",
+          )}:${Object.values(habitat(game, selectedFriend)).join(",")}:${enclosure(selectedFriend, game.size, game.fences).some((point) => tile(game, point).dirt > 0 || tile(game, point).object === "litter")}`
       : selected
-        ? `${feederStock(game, selected)}:${waterStock(game, selected)}`
+        ? `${feederStock(game, selected)}:${waterStock(game, selected)}:${tile(game, selected).object}:${tile(game, selected).dirt}:${canRepair(game, selected)}:${game.coins >= 2}:${canPlant(game, selected)}`
         : "";
     if (tab === "inspect" && careStatus !== panelCareStatus) renderPanel();
     panelCareStatus = careStatus;
+    const goalStatus = `${game.goals.join(":")}:${game.income.tickets}:${game.income.donations}:${game.income.sales}`;
+    if (tab === "goals" && goalStatus !== panelGoals) renderPanel();
+    panelGoals = goalStatus;
     if (panelTask !== game.keeper.task || panelStars !== game.stars) {
       if (tab !== "settings") renderPanel();
       panelTask = game.keeper.task;
@@ -495,10 +571,15 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     task.hidden = !started;
     task.textContent = `✨ ${game.goals.length}/${goalIds.length} · ${nextGoal ? tr("ui.nextTask") + ": " + tr("goal." + nextGoal) : tr("ui.tasksDone")}`;
     const event = root.querySelector("#zoo-event")!;
-    event.textContent = tr("event." + game.event);
+    const visibleEvent =
+      activeEvent(game) ||
+      (friendlyEvents.some((event) => event === game.event)
+        ? "welcome"
+        : game.event);
+    event.textContent = tr("event." + visibleEvent);
     event.classList.toggle(
       "celebrating",
-      ["arrival", "goal", "expansion", "birthday"].includes(game.event),
+      ["arrival", "goal", "expansion", "birthday"].includes(visibleEvent),
     );
     root.querySelector('[data-action="pause"]')!.textContent = game.paused
       ? "▶"
@@ -570,10 +651,6 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
   }
   function handleAction(action: string) {
     const [kind, id, toolId] = action.split(":");
-    const backup =
-      kind === "language"
-        ? root.querySelector<HTMLTextAreaElement>("#save-data")?.value
-        : undefined;
     if (kind === "tab" || kind === "tool") fenceStart = null;
     if (kind === "tab") {
       tab = id as Tab;
@@ -584,7 +661,20 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
       tool = { kind: id as Tool["kind"], id: toolId };
     } else if (kind === "care" && selected) {
       const animal = selectedAnimal();
-      command(game, id as Task["kind"], animal ?? selected, animal?.id ?? 0);
+      const dirty =
+        animal && id === "clean"
+          ? enclosure(animal, game.size, game.fences).find(
+              (point) =>
+                tile(game, point).dirt > 0 ||
+                tile(game, point).object === "litter",
+            )
+          : undefined;
+      command(
+        game,
+        id as Task["kind"],
+        dirty ?? animal ?? selected,
+        dirty ? 0 : (animal?.id ?? 0),
+      );
     } else if (kind === "food") buyFood(game, id as Food);
     else if (kind === "hire") hire(game, id as Role);
     else if (kind === "starter") {
@@ -659,8 +749,9 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
         null;
     } else if (kind === "repairStarter") {
       selectedAnimalId = null;
-      selected = { x: 4, z: 3 };
-      command(game, "repair", selected);
+      const location = { ...repairPoint };
+      selected = location;
+      if (canRepair(game, location)) command(game, "repair", location);
     } else if (kind === "expand") expand(game);
     else if (kind === "emergency") emergencyFood(game);
     else if (kind === "pause") game.paused = !game.paused;
@@ -713,8 +804,6 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     }
     update();
     renderPanel();
-    if (backup !== undefined)
-      root.querySelector<HTMLTextAreaElement>("#save-data")!.value = backup;
   }
   function onClick(event: Event) {
     audio.unlock();
@@ -820,6 +909,8 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     dispose() {
       disposed = true;
       cancelAnimationFrame(frame);
+      if (coinTimer !== null) window.clearTimeout(coinTimer);
+      root.querySelector(".income-flight")?.remove();
       if (autosaveTimer !== null) window.clearInterval(autosaveTimer);
       window.removeEventListener("pagehide", onHide);
       root.removeEventListener("click", onClick);

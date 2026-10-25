@@ -35,6 +35,7 @@ export interface ZooRenderer {
   rebuild: () => void;
   zoom: (delta: number) => void;
   rotate: (delta: number) => void;
+  setPlacementMode: (enabled: boolean) => void;
   dispose: () => void;
 }
 interface Figure {
@@ -109,6 +110,11 @@ export function createRenderer(
   let celebration: TransformNode | null = null;
   let celebrationStarted = 0;
   let celebrationKind = "";
+  let observedAnimals = new Set(game.animals.map((animal) => animal.id));
+  let animalCollection = game.animals;
+  let placementMode = false;
+  let arrivingAnimal: number | null = null;
+  let celebrationFocus: Point = { x: 1, z: 4 };
   function material(color: string): StandardMaterial {
     if (!materials.has(color)) {
       const m = new StandardMaterial(color, scene);
@@ -855,6 +861,34 @@ export function createRenderer(
         [0.14, 0.05, 0.02],
         at,
       );
+    } else if (kind === "plant") {
+      box(
+        parent,
+        "need-plant",
+        "#709968",
+        [0, -0.04, -0.12],
+        [0.04, 0.32, 0.04],
+        at,
+      );
+      for (const dx of [-0.1, 0.1]) {
+        const leaf = ball(
+          parent,
+          "plant-leaf",
+          "#8db76d",
+          [dx, 0.07, -0.12],
+          [0.22, 0.1, 0.05],
+          at,
+        );
+        leaf.rotation.z = dx < 0 ? -0.45 : 0.45;
+      }
+      ball(
+        parent,
+        "plant-soil",
+        "#ad855f",
+        [0, -0.2, -0.12],
+        [0.3, 0.1, 0.07],
+        at,
+      );
     } else if (kind === "clean") {
       const handle = box(
         parent,
@@ -1409,15 +1443,32 @@ export function createRenderer(
           grass.rotation.y = direction * 0.6;
         }
       }
-      for (let i = 0; i < Math.min(t.dirt, 4); i++)
-        ball(
-          world,
-          "cartoon-dropping",
-          "#977655",
-          [p.x - 0.22 + i * 0.15, 0.15, p.z + 0.25],
-          [0.16, 0.15, 0.18],
-          p,
-        );
+      for (let i = 0; i < Math.min(t.dirt, 4); i++) {
+        if (t.object === "bin" || path || t.object === "litter") {
+          const paper = box(
+            world,
+            t.object === "bin" ? "bin-paper" : "dropped-paper",
+            i % 2 ? "#e7ba9a" : "#f4e6c7",
+            [
+              p.x - 0.11 + i * 0.07,
+              t.object === "bin" ? 0.5 + i * 0.04 : 0.09,
+              p.z + 0.06,
+            ],
+            [0.13, 0.035, 0.16],
+            p,
+          );
+          paper.rotation.set(0.2, i * 0.9, 0.15);
+        } else {
+          ball(
+            world,
+            "cartoon-dropping",
+            "#977655",
+            [p.x - 0.22 + i * 0.15, 0.15, p.z + 0.25],
+            [0.16, 0.15, 0.18],
+            p,
+          );
+        }
+      }
     }
     for (const [edge, kind] of Object.entries(game.fences)) {
       const ends = edge.split("|").map((v) => v.split(",").map(Number)),
@@ -1461,7 +1512,7 @@ export function createRenderer(
     reconcileFigures();
     if (size === -1) {
       const focus = Math.min(center, 4.5);
-      camera.setTarget(new Vector3(focus, 0, focus));
+      camera.setTarget(new Vector3(focus, 0, focus), false, false, true);
       extent = 6.4;
     }
     revision = game.revision;
@@ -1574,7 +1625,7 @@ export function createRenderer(
     const working = !!task && !task.route.length && task.kind !== "walk";
     const tool = scene.getTransformNodeByName(`tool-${id}`)!;
     tool.setEnabled(
-      working && ["clean", "clear", "repair"].includes(task!.kind),
+      working && ["clean", "clear", "repair", "plant"].includes(task!.kind),
     );
     tool.rotation.x = working ? Math.sin(visualTime * 9) * 0.65 : 0;
     const arms = f.limbs.filter((limb) => limb.name === "person-arm");
@@ -1599,16 +1650,26 @@ export function createRenderer(
           ? "water"
           : task.kind === "pet"
             ? "heart"
-            : ["clean", "clear"].includes(task.kind)
-              ? "clean"
-              : "work"
+            : task.kind === "plant"
+              ? "plant"
+              : ["clean", "clear"].includes(task.kind)
+                ? "clean"
+                : "work"
       : "";
     updateBubble(f, need);
     for (const mesh of f.node.getChildMeshes())
       mesh.metadata.tile = { x: at.x, z: at.z };
   }
-  function startCelebration(kind: string): void {
+  function startCelebration(
+    kind: string,
+    animalId: number | null = null,
+  ): void {
     celebration?.dispose();
+    arrivingAnimal = animalId;
+    const arriving = game.animals.find((animal) => animal.id === animalId);
+    celebrationFocus = arriving
+      ? { x: arriving.x, z: arriving.z }
+      : { x: 1, z: 4 };
     celebration = new TransformNode("celebration", scene);
     celebrationStarted = visualTime;
     celebrationKind = kind;
@@ -1717,9 +1778,23 @@ export function createRenderer(
     for (const mesh of celebration.getChildMeshes()) mesh.isPickable = false;
   }
   function animateCelebration(): void {
+    if (animalCollection !== game.animals) {
+      celebration?.dispose();
+      celebration = null;
+      arrivingAnimal = null;
+      adopted = game.counters.adopted ?? 0;
+      eventIndex = game.counters.eventIndex ?? 0;
+      observedAnimals = new Set(game.animals.map((animal) => animal.id));
+      animalCollection = game.animals;
+    }
     const nextAdopted = game.counters.adopted ?? 0;
     const nextEvent = game.counters.eventIndex ?? 0;
-    if (nextAdopted > adopted) startCelebration("arrival");
+    if (nextAdopted > adopted)
+      startCelebration(
+        "arrival",
+        game.animals.find((animal) => !observedAnimals.has(animal.id))?.id ??
+          null,
+      );
     else if (nextEvent !== eventIndex)
       startCelebration(
         ["school", "birthday", "sunny", "family", "photo", "balloon"][
@@ -1728,11 +1803,13 @@ export function createRenderer(
       );
     adopted = nextAdopted;
     eventIndex = nextEvent;
+    observedAnimals = new Set(game.animals.map((animal) => animal.id));
     if (!celebration) return;
     const elapsed = visualTime - celebrationStarted;
     if (elapsed > 8) {
       celebration.dispose();
       celebration = null;
+      arrivingAnimal = null;
       return;
     }
     const van = scene.getTransformNodeByName("arrival-transporter");
@@ -1742,10 +1819,33 @@ export function createRenderer(
         0,
         4,
       );
+    const arriving =
+      arrivingAnimal === null
+        ? undefined
+        : figures.get(`animal-${arrivingAnimal}`);
+    if (arriving)
+      celebrationFocus = {
+        x: arriving.node.position.x,
+        z: arriving.node.position.z,
+      };
     const crate = scene.getMeshByName("arrival-crate");
     if (crate) {
-      crate.position.y = 0.3 + Math.abs(Math.sin(elapsed * 3)) * 0.06;
+      const delivery = Math.max(0, Math.min(1, elapsed - 2));
+      crate.position.set(
+        1.5 + (celebrationFocus.x - 1.5) * delivery,
+        0.3 + Math.sin(delivery * Math.PI) * 0.4,
+        4 + (celebrationFocus.z - 4) * delivery,
+      );
       crate.scaling.setAll(Math.max(0, 1 - Math.max(0, elapsed - 3)));
+    }
+    if (arrivingAnimal !== null) {
+      const animal = figures.get(`animal-${arrivingAnimal}`);
+      if (animal) {
+        const reveal = Math.max(0.001, Math.min(1, elapsed - 3));
+        animal.node.scaling.scaleInPlace(reveal);
+        animal.node.position.y += Math.sin(reveal * Math.PI) * 0.25;
+        animal.bubble.setEnabled(reveal >= 1);
+      }
     }
     for (const [i, mesh] of celebration
       .getChildMeshes()
@@ -1753,9 +1853,9 @@ export function createRenderer(
       .entries()) {
       const phase = (elapsed * 0.5 + i * 0.13) % 1;
       mesh.position.set(
-        1 + Math.sin(i * 2.4) * (0.3 + phase),
+        celebrationFocus.x + Math.sin(i * 2.4) * (0.3 + phase),
         2.8 - phase * 2.5,
-        4 + Math.cos(i * 2.4) * (0.3 + phase),
+        celebrationFocus.z + Math.cos(i * 2.4) * (0.3 + phase),
       );
       mesh.rotation.set(elapsed + i, elapsed * 2, i);
     }
@@ -1841,7 +1941,7 @@ export function createRenderer(
           mesh.rotation.z =
             Math.sin(visualTime * (playful ? 8 : 2) + a.id) * 0.2;
       }
-      f.node.scaling.y = a.activity === "sleep" ? 0.75 : 1;
+      f.node.scaling.set(1, a.activity === "sleep" ? 0.75 : 1, 1);
       f.carry.setEnabled(a.activity === "play");
       updateBubble(
         f,
@@ -1903,12 +2003,49 @@ export function createRenderer(
     updateCamera();
   };
   window.addEventListener("resize", resize);
+  let pointerStart: { x: number; y: number } | null = null;
+  let pointerDragged = false;
   const pointer = scene.onPointerObservable.add((info) => {
     if (
-      info.type === PointerEventTypes.POINTERPICK &&
+      info.type === PointerEventTypes.POINTERDOWN &&
       info.event.button === 0
     ) {
-      const p = info.pickInfo?.pickedMesh?.metadata?.tile as Point | undefined;
+      pointerStart = { x: info.event.clientX, y: info.event.clientY };
+      pointerDragged = false;
+    }
+    if (info.type === PointerEventTypes.POINTERMOVE && pointerStart) {
+      if (
+        Math.hypot(
+          info.event.clientX - pointerStart.x,
+          info.event.clientY - pointerStart.y,
+        ) > 6
+      )
+        pointerDragged = true;
+    }
+    // POINTERPICK suppresses a rapid second click during Babylon's double-tap
+    // detection. Each short left-button release is a separate grid action.
+    if (info.type === PointerEventTypes.POINTERUP && info.event.button === 0) {
+      const hadStart = pointerStart !== null;
+      const dragged =
+        pointerDragged ||
+        (pointerStart !== null &&
+          Math.hypot(
+            info.event.clientX - pointerStart.x,
+            info.event.clientY - pointerStart.y,
+          ) > 6);
+      pointerStart = null;
+      pointerDragged = false;
+      if (!hadStart || dragged) return;
+      // Existing fences and tall props must not redirect a placement onto their
+      // own tile when the player points at the ground behind them.
+      const pick = placementMode
+        ? scene.pick(
+            scene.pointerX,
+            scene.pointerY,
+            (mesh) => mesh.name === "tile",
+          )
+        : info.pickInfo;
+      const p = pick?.pickedMesh?.metadata?.tile as Point | undefined;
       if (p) onSelect({ ...p });
     }
   });
@@ -1919,6 +2056,9 @@ export function createRenderer(
     rebuild,
     zoom,
     rotate,
+    setPlacementMode: (enabled) => {
+      placementMode = enabled;
+    },
     dispose: () => {
       canvas.removeEventListener("wheel", wheel);
       window.removeEventListener("resize", resize);

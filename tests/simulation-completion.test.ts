@@ -5,6 +5,13 @@ import {
   expand,
   feederStock,
   waterStock,
+  addAnimal,
+  canRepair,
+  canPlant,
+  plantCost,
+  repairPoint,
+  fence,
+  paint,
   activeEvent,
   adopt,
   advance,
@@ -644,4 +651,224 @@ test("eating real feeder food completes the feeding tutorial exactly once", () =
   advance(g, 1);
   expect(g.counters.feed).toBe(1);
   expect(g.coins).toBe(coins);
+});
+
+describe("care scheduling respects reachable animals and reserved deliveries", () => {
+  test("an unreachable animal does not prevent caring for another animal or cleaning", () => {
+    const g = wealthy(),
+      blocked = g.animals[0];
+    g.counters["feeder3z2.greens"] = 0;
+    g.counters["water5z2"] = 0;
+    blocked.hunger = blocked.water = 5;
+    for (const n of [
+      { x: 3, z: 2 },
+      { x: 5, z: 2 },
+      { x: 4, z: 1 },
+      { x: 4, z: 3 },
+    ])
+      g.fences[edgeKey(blocked, n)] = "fence";
+    addAnimal(g, "rabbit", { x: 5, z: 3 });
+    const reachable = g.animals[1];
+    reachable.hunger = 5;
+    reachable.water = 100;
+    tile(g, { x: 2, z: 5 }).dirt = 1;
+    expect(hire(g, "keeper")).toBe(true);
+    advance(g, 25);
+    expect(reachable.hunger).toBeGreaterThan(90);
+    expect(blocked.hunger).toBeLessThan(5);
+    expect(tile(g, { x: 2, z: 5 }).dirt).toBe(0);
+    expect(importGame(exportGame(g))).toEqual(g);
+  });
+  test("several carers do not carry duplicate portions to one hungry animal", () => {
+    const g = wealthy(),
+      a = g.animals[0];
+    g.counters["feeder3z2.greens"] = 0;
+    a.hunger = 5;
+    expect(hire(g, "keeper")).toBe(true);
+    expect(hire(g, "keeper")).toBe(true);
+    advance(g, 2);
+    expect(g.workers.filter((w) => w.task?.animal === a.id)).toHaveLength(1);
+    expect(g.inventory.greens).toBe(4);
+    advance(g, 20);
+    expect(a.hunger).toBeGreaterThan(90);
+    expect(g.inventory.greens).toBe(4);
+  });
+});
+
+describe("active keeper and guest routes can pass safely", () => {
+  test("a guest arriving in a queued keeper destination cannot deadlock the exit", () => {
+    const g = createGame();
+    g.open = true;
+    g.time = 0.25;
+    Object.assign(g.keeper, { x: 1, z: 4 });
+    expect(command(g, "walk", { x: 2, z: 4 })).toBe(true);
+    const v = guest(g, 3, 4);
+    v.route = [
+      { x: 2, z: 4 },
+      { x: 1, z: 4 },
+    ];
+    v.age = 100;
+    tick(g, 0.25);
+    expect(v).toMatchObject({ x: 2, z: 4 });
+    allDistinct(g);
+    tick(g, 0.25);
+    tick(g, 0.25);
+    allDistinct(g);
+    expect(g.keeper).toMatchObject({ x: 2, z: 4 });
+    expect(v).toMatchObject({ x: 1, z: 4 });
+    expect(importGame(exportGame(g))).toEqual(g);
+    g.open = false;
+    advance(g, 3);
+    expect(g.visitors).toHaveLength(0);
+    expect(g.keeper.task).toBeNull();
+  });
+  test("idle keepers yield onto a free path when every neighboring off-path tile is blocked", () => {
+    const g = createGame();
+    g.open = true;
+    Object.assign(g.keeper, { x: 1, z: 4 });
+    for (const p of [
+      { x: 1, z: 3 },
+      { x: 1, z: 5 },
+    ])
+      tile(g, p).object = "rock";
+    const v = guest(g, 2, 4);
+    v.age = 100;
+    v.route = [{ x: 1, z: 4 }];
+    advance(g, 4);
+    expect(g.visitors).toHaveLength(0);
+    expect(g.keeper).toMatchObject({ x: 0, z: 4 });
+    allDistinct(g);
+  });
+});
+
+test("care tutorial credit requires a real obstacle, dirt or damaged fence", () => {
+  const g = wealthy();
+  const empty = { x: 2, z: 5 };
+  expect(command(g, "clear", empty)).toBe(false);
+  expect(command(g, "clean", empty)).toBe(false);
+  expect(command(g, "repair", empty)).toBe(false);
+  advance(g, 2);
+  expect(g.goals).not.toContain("clear");
+  expect(g.goals).not.toContain("repair");
+  expect(canRepair(g, repairPoint)).toBe(true);
+  expect(command(g, "repair", repairPoint)).toBe(true);
+  advance(g, 10);
+  expect(g.goals).toContain("repair");
+  expect(canRepair(g, repairPoint)).toBe(false);
+  expect(command(g, "repair", repairPoint)).toBe(false);
+  const missing = createGame();
+  delete missing.fences[edgeKey(repairPoint, { x: 3, z: 4 })];
+  expect(canRepair(missing, repairPoint)).toBe(false);
+});
+
+test("repeated terrain and fence clicks never spend coins for an unchanged world", () => {
+  const g = wealthy(),
+    p = { x: 2, z: 7 },
+    next = { x: 2, z: 8 };
+  const before = g.coins,
+    revision = g.revision;
+  expect(paint(g, "grass", p)).toBe(false);
+  expect(g.coins).toBe(before);
+  expect(g.revision).toBe(revision);
+  expect(paint(g, "sand", p)).toBe(true);
+  const afterPaint = g.coins;
+  expect(paint(g, "sand", p)).toBe(false);
+  expect(g.coins).toBe(afterPaint);
+  expect(fence(g, p, next, "fence")).toBe(true);
+  const afterFence = g.coins,
+    afterRevision = g.revision;
+  expect(fence(g, p, next, "fence")).toBe(false);
+  expect(g.coins).toBe(afterFence);
+  expect(g.revision).toBe(afterRevision);
+  expect(fence(g, p, next, "highfence")).toBe(true);
+  const afterUpgrade = g.coins;
+  expect(fence(g, p, next, "highfence")).toBe(false);
+  expect(g.coins).toBe(afterUpgrade);
+  expect(fence(g, p, next, "gate")).toBe(true);
+  const afterGate = g.coins;
+  expect(fence(g, p, next, "gate")).toBe(false);
+  expect(g.coins).toBe(afterGate);
+});
+
+describe("keeper flower planting is paid physical work", () => {
+  test("walking and planting completes after travel, preserves a queued save and credits flowers once", () => {
+    const g = createGame(),
+      p = { x: 3, z: 6 };
+    tile(g, p).object = "";
+    g.coins = 10;
+    expect(canPlant(g, p)).toBe(true);
+    expect(command(g, "walk", p)).toBe(true);
+    expect(command(g, "plant", p)).toBe(true);
+    expect(g.keeper.task?.kind).toBe("plant");
+    expect(g.coins).toBe(10 - plantCost);
+    expect(tile(g, p).object).toBe("");
+    expect(importGame(exportGame(g))).toEqual(g);
+    advance(g, 0.25);
+    expect(tile(g, p).object).toBe("");
+    advance(g, 8);
+    expect(tile(g, p).object).toBe("flowers");
+    expect(g.counters.plant).toBe(1);
+    expect(g.counters.flowers).toBe(1);
+    expect(distance(g.keeper, p)).toBe(1);
+    expect(g.coins).toBe(8);
+    advance(g, 5);
+    expect(g.counters.plant).toBe(1);
+    expect(g.coins).toBe(8);
+    expect(importGame(exportGame(g))).toEqual(g);
+  });
+  test("poor, busy, occupied and unreachable planting requests preserve funds and queued walks", () => {
+    const g = createGame(),
+      p = { x: 3, z: 6 };
+    tile(g, p).object = "";
+    expect(command(g, "walk", p)).toBe(true);
+    const walk = g.keeper.task;
+    expect(command(g, "plant", p)).toBe(false);
+    expect(g.keeper.task).toBe(walk);
+    expect(g.message).toBe("noCoins");
+    g.keeper.task = null;
+    g.coins = 10;
+    expect(canPlant(g, { x: -1, z: 2 })).toBe(false);
+    expect(command(g, "plant", g.animals[0])).toBe(false);
+    expect(command(g, "plant", { x: 3, z: 2 })).toBe(false);
+    const a = g.animals[0];
+    expect(command(g, "feed", a, a.id)).toBe(true);
+    expect(command(g, "plant", p)).toBe(false);
+    expect(g.message).toBe("busy");
+    g.keeper.task = null;
+    for (const q of points(g))
+      if (distance(q, p) === 1) tile(g, q).object = "rock";
+    expect(command(g, "plant", p)).toBe(false);
+    expect(g.message).toBe("noRoute");
+    expect(g.coins).toBe(10);
+  });
+  test("a structure built during travel is preserved and planting money is refunded", () => {
+    const g = createGame(),
+      p = { x: 3, z: 6 };
+    tile(g, p).object = "";
+    g.coins = 10;
+    expect(command(g, "plant", p)).toBe(true);
+    tile(g, p).object = "bench";
+    expect(importGame(exportGame(g))).toEqual(g);
+    advance(g, 10);
+    expect(tile(g, p).object).toBe("bench");
+    expect(g.coins).toBe(10);
+    expect(g.counters.plant).toBeUndefined();
+    expect(g.counters.flowers).toBeUndefined();
+    expect(g.message).toBe("occupied");
+  });
+  test("an animal occupying the planting plot is not overwritten", () => {
+    const g = createGame(),
+      p = { x: 3, z: 6 };
+    tile(g, p).object = "";
+    g.coins = 10;
+    expect(command(g, "plant", p)).toBe(true);
+    addAnimal(g, "rabbit", p);
+    advance(g, 8);
+    expect(tile(g, p).object).toBe("");
+    expect(g.animals.some((a) => equal(a, p))).toBe(true);
+    // Taking in a second animal completes a separate three-coin goal.
+    expect(g.coins).toBe(13);
+    expect(g.counters.plant).toBeUndefined();
+    expect(g.counters.flowers).toBeUndefined();
+  });
 });

@@ -37,6 +37,7 @@ import {
   occupied,
   passable,
   taskRoute,
+  repairPoint,
 } from "../src/game";
 import {
   distance,
@@ -204,8 +205,8 @@ describe("keeper physically delivers food and clears droppings", () => {
     command(g, "clean", litter);
     advance(g, 3);
     expect(tile(g, litter).object).toBe("");
-    command(g, "repair", g.keeper);
-    advance(g, 2);
+    command(g, "repair", repairPoint);
+    advance(g, 10);
     expect(g.counters.repaired).toBe(1);
   });
   test("rejects invalid, unreachable and foodless tasks without losing inventory", () => {
@@ -247,6 +248,7 @@ describe("construction and progression", () => {
   });
   test("paints terrain and builds boundary fences, tall fences and gates", () => {
     const g = rich();
+    tile(g, p).terrain = "earth";
     for (const terrain of terrains) expect(paint(g, terrain, p)).toBe(true);
     expect(paint(g, "grass", { x: -1, z: 0 })).toBe(false);
     for (const kind of ["fence", "highfence", "gate"] as const)

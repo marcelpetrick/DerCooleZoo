@@ -1014,3 +1014,28 @@ button:active {
     font-size: 10px;
   }
 }
+.income-flight {
+  position: fixed;
+  top: 0;
+  left: 0;
+  z-index: 6;
+  pointer-events: none;
+  font-size: 26px;
+  animation: coin-to-counter 650ms ease-in forwards;
+}
+@keyframes coin-to-counter {
+  from {
+    transform: translate(var(--coin-from-x), var(--coin-from-y)) scale(1.15);
+    opacity: 1;
+  }
+  to {
+    transform: translate(var(--coin-to-x), var(--coin-to-y)) scale(0.35);
+    opacity: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .income-flight {
+    animation: none;
+    display: none;
+  }
+}

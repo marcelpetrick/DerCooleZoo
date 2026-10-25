@@ -406,5 +406,9 @@
   "steps.popcorn": "1. Verdiene 12 Münzen. 2. Öffne Bauen → Stände → Popcornstand. 3. Klicke ein freies Feld neben einem verbundenen Weg. Hungrige Gäste kaufen von selbst. Ein Verkäufer verbessert später die Verkäufe.",
   "steps.secondAnimal": "1. Verdiene Münzen für ein freigeschaltetes Tier. 2. Baue ein geschlossenes Gehege mit genug Platz, Tor, Futter und Wasser. 3. Öffne Tiere, wähle eine Art und klicke ein freies Feld darin. Ein Transporter feiert die Ankunft!",
   "steps.stars": "1. Nimm eine weitere Tierart auf. 2. Verbessere Lebensräume und Tierwohl. 3. Baue nützliche Dinge, halte den Zoo sauber und mache Gäste glücklich. Dadurch steigen Zoo-Sterne und schalten weitere Arten frei.",
-  "steps.finished": "Alle zehn Aufgaben sind geschafft. Baue weiter Lebensräume, begrüße Tiere und mache deinen Zoo zu einem glücklichen Ort."
+  "steps.finished": "Alle zehn Aufgaben sind geschafft. Baue weiter Lebensräume, begrüße Tiere und mache deinen Zoo zu einem glücklichen Ort.",
+  "tip.repairDone": "Der Anfangszaun ist bereits repariert. Dein Zoowärter kann jetzt bei anderen Pflegeaufgaben helfen.",
+  "ui.plant": "Blumen pflanzen",
+  "message.plant": "Dein Zoowärter bringt Blumen zum Pflanzen.",
+  "tip.plant": "Klicke, damit dein Zoowärter für 2 Münzen Blumen auf dieses freie Feld pflanzt. Nach der Arbeit erscheinen Blumen und verschönern deinen Zoo."
 }

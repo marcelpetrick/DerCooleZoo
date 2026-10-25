@@ -27,3 +27,26 @@ unverified.
 The subsequent `githubAbout` review confirmed the public description and ten
 topics already match the repository. Evidence and alternatives are recorded in
 [github-about.md](github-about.md).
+
+## Follow-through review (0.4.3)
+
+Base: `main` at `571265b`; the formal three-dot diff is empty. Supplemental
+independent review covered the pending simulation, renderer, UI and save changes.
+The following confirmed defects were resolved with regression evidence:
+
+- Carers retried an unreachable animal and could duplicate food reservations.
+- A keeper and departing guest could block one another indefinitely.
+- Empty clear/clean/repair actions could award tutorial progress.
+- Care/goal panels retained stale state; settings refresh discarded typed backups.
+- Rapid world clicks were suppressed and fence geometry redirected placement.
+- Initial camera centering altered the intended isometric azimuth.
+- Imported zoos could inherit an unrelated arrival's hidden/shrunken animal.
+
+Planting payment, failure refunds and save migration were traced separately;
+releases originating off-canvas and drag gestures cannot place objects. No
+confirmed blocking findings remain in the supplementary reviews. The actual
+browser growth flow covers every fence edge, gate, facilities, second adoption,
+keeper planting, save and reload.
+
+The subsequent `githubAbout` check confirmed the public sentence and all ten
+topics remain supported by the repository; no public metadata edits were needed.

@@ -50,7 +50,8 @@ export interface Task {
     | "repair"
     | "walk"
     | "refill"
-    | "refillWater";
+    | "refillWater"
+    | "plant";
   target: Point;
   animal: number;
   route: Point[];
@@ -104,6 +105,10 @@ export interface Game {
   seed: number;
 }
 export const entrance: Point = { x: 1, z: 4 };
+export const repairPoint: Point = { x: 3, z: 3 };
+const damagedEdge = edgeKey(repairPoint, { x: 3, z: 4 });
+export const canRepair = (g: Game, p: Point): boolean =>
+  equal(p, repairPoint) && !g.counters.repaired && !!g.fences[damagedEdge];
 export const clamp = (n: number, lo = 0, hi = 100): number =>
   Math.max(lo, Math.min(hi, n));
 export function random(g: Game): number {
@@ -129,6 +134,7 @@ export const isPath = (g: Game, p: Point): boolean =>
   ["path", "stonepath", "woodpath", "familypath", "entrance"].includes(
     tile(g, p).object,
   );
+export const plantCost = 2;
 const clearable = ["weed", "rock", "stump", "tree"];
 export const figures = (g: Game): Point[] => [
   g.keeper,
@@ -138,6 +144,8 @@ export const figures = (g: Game): Point[] => [
 ];
 export const occupied = (g: Game, p: Point, except?: Point): boolean =>
   figures(g).some((figure) => figure !== except && equal(figure, p));
+export const canPlant = (g: Game, p: Point): boolean =>
+  inside(p, g.size) && tile(g, p).object === "" && !occupied(g, p);
 export const passable = (g: Game, p: Point): boolean =>
   inside(p, g.size) &&
   [
@@ -380,8 +388,8 @@ export function build(g: Game, id: string, p: Point): boolean {
   return true;
 }
 export function paint(g: Game, terrain: Terrain, p: Point): boolean {
-  if (!terrains.includes(terrain) || !inside(p, g.size) || !pay(g, 1))
-    return false;
+  if (!terrains.includes(terrain) || !inside(p, g.size)) return false;
+  if (tile(g, p).terrain === terrain || !pay(g, 1)) return false;
   tile(g, p).terrain = terrain;
   g.revision++;
   return true;
@@ -408,10 +416,7 @@ export function fence(
     g.message = "fenceRemoved";
     return true;
   }
-  if (
-    g.animals.some((an) => equal(an, a)) &&
-    g.fences[edgeKey(a, b)] === kind
-  ) {
+  if (g.fences[edgeKey(a, b)] === kind) {
     g.message = "occupied";
     return false;
   }
@@ -527,8 +532,23 @@ export function command(
   animal = 0,
   actor: Game["keeper"] | Worker = g.keeper,
 ): boolean {
-  if (!inside(p, g.size) || actor.task) {
+  if (
+    !inside(p, g.size) ||
+    (actor.task && !(kind === "plant" && actor.task.kind === "walk"))
+  ) {
     g.message = "busy";
+    return false;
+  }
+  if (
+    (kind === "repair" && !canRepair(g, p)) ||
+    (kind === "clear" && !clearable.includes(tile(g, p).object)) ||
+    (kind === "clean" &&
+      tile(g, p).dirt === 0 &&
+      tile(g, p).object !== "litter")
+  )
+    return false;
+  if (kind === "plant" && !canPlant(g, p)) {
+    g.message = "occupied";
     return false;
   }
   let a = g.animals.find((a) => a.id === animal);
@@ -560,10 +580,14 @@ export function command(
     }
     g.inventory[carrying]--;
   }
+  if (kind === "plant" && !pay(g, plantCost)) return false;
   actor.task = {
     kind,
     target: { x: p.x, z: p.z },
-    animal: kind === "refill" || kind === "refillWater" ? 0 : animal,
+    animal:
+      kind === "refill" || kind === "refillWater" || kind === "plant"
+        ? 0
+        : animal,
     route,
     progress: 0,
     carrying,
@@ -575,6 +599,16 @@ function finishTask(g: Game, actor: Game["keeper"] | Worker): void {
   const task = actor.task!,
     a = g.animals.find((a) => a.id === task.animal),
     t = tile(g, task.target);
+  let completed = true;
+  if (task.kind === "plant") {
+    if (canPlant(g, task.target)) {
+      t.object = "flowers";
+      g.counters.flowers = (g.counters.flowers ?? 0) + 1;
+    } else {
+      g.coins += plantCost;
+      completed = false;
+    }
+  }
   if (a) {
     if (task.kind === "feed") {
       a.hunger = 100;
@@ -601,8 +635,8 @@ function finishTask(g: Game, actor: Game["keeper"] | Worker): void {
   }
   if (task.kind === "clear" && clearable.includes(t.object)) t.object = "";
   if (task.kind === "repair") g.counters.repaired = 1;
-  g.counters[task.kind] = (g.counters[task.kind] ?? 0) + 1;
-  g.message = "done";
+  if (completed) g.counters[task.kind] = (g.counters[task.kind] ?? 0) + 1;
+  g.message = completed ? "done" : "occupied";
   g.revision++;
   actor.task = null;
   if (
@@ -655,12 +689,36 @@ export function taskRoute(
   }
   return null;
 }
-function moveActor(g: Game, actor: Game["keeper"] | Worker, dt: number): void {
+function moveActor(
+  g: Game,
+  actor: Game["keeper"] | Worker,
+  dt: number,
+  movedGuests: Set<Visitor>,
+): void {
   const task = actor.task;
   if (!task) return;
   task.progress += dt;
   while (task.progress >= 0.55 && task.route.length) {
     const next = task.route[0];
+    const guest = g.visitors.find(
+      (v) => equal(v, next) && v.route.length > 0 && equal(v.route[0], actor),
+    );
+    if (
+      guest &&
+      !movedGuests.has(guest) &&
+      isPath(g, actor) &&
+      isPath(g, next) &&
+      !blockedByFence(g, actor, next)
+    ) {
+      const previous = { x: actor.x, z: actor.z };
+      Object.assign(actor, task.route.shift()!);
+      Object.assign(guest, previous);
+      guest.route.shift();
+      guest.activity = "walk";
+      movedGuests.add(guest);
+      task.progress -= 0.55;
+      continue;
+    }
     if (
       !passable(g, next) ||
       occupied(g, next, actor) ||
@@ -730,17 +788,21 @@ function staff(g: Game): void {
       continue;
     }
     if (w.role === "keeper") {
-      const a = g.animals.find(
-        (a) =>
-          (a.hunger < 65 && g.inventory[getSpecies(a.species).food] > 0) ||
-          a.water < 65,
+      const assigned = new Set(
+        [g.keeper, ...g.workers].map((actor) => actor.task?.animal),
       );
-      if (a) {
-        const kind =
-          a.hunger < 65 && g.inventory[getSpecies(a.species).food] > 0
-            ? "feed"
-            : "water";
-        command(g, kind, a, a.id, w);
+      const care = g.animals.flatMap((a) => {
+        if (assigned.has(a.id)) return [];
+        const kinds: Task["kind"][] = [];
+        if (a.hunger < 65 && g.inventory[getSpecies(a.species).food] > 0)
+          kinds.push("feed");
+        if (a.water < 65) kinds.push("water");
+        return kinds
+          .filter((kind) => taskRoute(g, w, kind, a) !== null)
+          .map((kind) => ({ animal: a, kind }));
+      })[0];
+      if (care) {
+        command(g, care.kind, care.animal, care.animal.id, w);
         continue;
       }
     }
@@ -825,13 +887,12 @@ export function visit(
       (actor) => equal(actor, next) && !actor.task,
     );
     if (blocker) {
-      const aside = neighbors(blocker).find(
-        (p) =>
-          passable(g, p) &&
-          !isPath(g, p) &&
-          !occupied(g, p) &&
-          !blockedByFence(g, blocker, p),
-      );
+      const aside = neighbors(blocker)
+        .filter(
+          (p) =>
+            passable(g, p) && !occupied(g, p) && !blockedByFence(g, blocker, p),
+        )
+        .sort((a, b) => Number(isPath(g, a)) - Number(isPath(g, b)))[0];
       if (aside) command(g, "walk", aside, 0, blocker);
     }
     if (
@@ -1070,8 +1131,9 @@ export function tick(g: Game, seconds: number): void {
   const dt = Math.min(seconds, 0.5),
     prev = g.time;
   g.time += dt;
-  moveActor(g, g.keeper, dt);
-  for (const w of g.workers) moveActor(g, w, dt);
+  const moved = new Set<Visitor>();
+  moveActor(g, g.keeper, dt, moved);
+  for (const w of g.workers) moveActor(g, w, dt, moved);
   for (const a of g.animals) {
     const upkeep = a.species === "guinea" ? 0.9 : 1;
     a.hunger = clamp(a.hunger - dt * 0.15 * upkeep);
@@ -1148,7 +1210,6 @@ export function tick(g: Game, seconds: number): void {
       earn(g, "tickets", g.ticket);
     }
   }
-  const moved = new Set<Visitor>();
   for (const v of g.visitors) visit(g, v, dt, moved);
   g.visitors = g.visitors.filter((v) => {
     if (v.age < 999) return true;
