@@ -64,3 +64,15 @@ working actor's occupancy, requires an adjacent work position and still rejects
 other figures. Delayed-frame, standing-plot and real-browser growth regressions
 pass; no confirmed blockers remain in the changes. GitHub About metadata was
 rechecked and remains supported without edits.
+
+## Interactive review and recovery (0.4.6)
+
+Base: `main` at `e4cc139`; formal branch diff empty. The game was started on
+port 5173 and opened through the system browser. Supplementary review identified
+a permanent busy state when a building replaces a queued walk's destination.
+The real-browser recovery scenario now exercises that change and starts a new
+care job afterward. Manual cancellation returns food/planting reservations once;
+static route failure releases jobs, while temporary visitor occupancy waits.
+Review traced both automatic and explicit cancellation paths and the localized
+controls. Regression tests cover job recovery, exact-once refunds and resume after
+temporary obstruction. GitHub About metadata is unchanged by these fixes.

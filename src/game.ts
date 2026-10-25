@@ -663,16 +663,32 @@ function finishTask(g: Game, actor: Game["keeper"] | Worker): void {
       };
   }
 }
+/** Release a job's undelivered supplies exactly once. */
+export function cancelTask(
+  g: Game,
+  actor: Game["keeper"] | Worker = g.keeper,
+): boolean {
+  const task = actor.task;
+  if (!task) return false;
+  if (task.carrying) g.inventory[task.carrying]++;
+  if (task.kind === "plant") g.coins += plantCost;
+  actor.task = null;
+  g.message = "cancelled";
+  return true;
+}
 export function taskRoute(
   g: Game,
   actor: Point,
   kind: Task["kind"],
   target: Point,
+  ignoreFigures = false,
 ): Point[] | null {
   const busy = new Set(
-    figures(g)
-      .filter((figure) => figure !== actor)
-      .map(key),
+    ignoreFigures
+      ? []
+      : figures(g)
+          .filter((figure) => figure !== actor)
+          .map(key),
   );
   const canWalk = (p: Point) => passable(g, p) && !busy.has(key(p));
   const candidates = (kind === "walk" ? [target] : neighbors(target))
@@ -726,7 +742,15 @@ function moveActor(
     ) {
       const route = taskRoute(g, actor, task.kind, task.target);
       task.progress = Math.min(task.progress, 0.55);
-      if (route === null) return;
+      if (route === null) {
+        // People can move aside; changed buildings or fences cannot. Release
+        // impossible jobs rather than trapping the keeper in a permanent wait.
+        if (taskRoute(g, actor, task.kind, task.target, true) === null) {
+          cancelTask(g, actor);
+          g.message = "noRoute";
+        }
+        return;
+      }
       task.route = route;
       if (!route.length) break;
     }

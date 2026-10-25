@@ -303,7 +303,7 @@
   "ui.help": "So spielst du",
   "help.intro": "Mit kleinen Schritten wird dein Zoo groß. Hier kannst du immer nachschauen!",
   "help.care.title": "Kümmere dich um dein Tier",
-  "help.care.body": "Klicke ein Tier an, dann Füttern, Wasser bringen, Streicheln oder Saubermachen. Dein Zoowärter läuft erst hin. Kaufe Futter im Futter-Menü: Der Kauf allein macht noch niemanden satt. Bei Münzmangel hilft gratis Notfutter. Klicke eine Futterstelle an → Futterstelle füllen: Dein Zoowärter bringt eine Portion hin und hungrige Tiere fressen von selbst. Klicke eine Wasserstelle an → Wasserstelle füllen, damit Tiere trinken können.",
+  "help.care.body": "Klicke ein Tier an, dann Füttern, Wasser bringen, Streicheln oder Saubermachen. Dein Zoowärter läuft erst hin. Kaufe Futter im Futter-Menü: Der Kauf allein macht noch niemanden satt. Bei Münzmangel hilft gratis Notfutter. Klicke eine Futterstelle an → Futterstelle füllen: Dein Zoowärter bringt eine Portion hin und hungrige Tiere fressen von selbst. Klicke eine Wasserstelle an → Wasserstelle füllen, damit Tiere trinken können. Mit Aktuelle Arbeit stoppen kannst du eine neue Aufgabe wählen; ungenutztes Futter und reservierte Pflanzmünzen bekommst du zurück.",
   "help.paths.title": "Zeig den Gästen den Weg",
   "help.paths.body": "Bauen → Wege: Wähle einen Weg und klicke freie Felder an. Verbinde die Wege mit dem Eingang. Gäste laufen auf Wegen. Stelle Bänke, Spielgeräte und Stände daneben. Öffne den Zoo für deine ersten Gäste!",
   "help.booths.title": "Lass das Popcorn poppen",
@@ -410,5 +410,8 @@
   "tip.repairDone": "Der Anfangszaun ist bereits repariert. Dein Zoowärter kann jetzt bei anderen Pflegeaufgaben helfen.",
   "ui.plant": "Blumen pflanzen",
   "message.plant": "Dein Zoowärter bringt Blumen zum Pflanzen.",
-  "tip.plant": "Klicke, damit dein Zoowärter für 2 Münzen Blumen auf dieses freie Feld pflanzt. Nach der Arbeit erscheinen Blumen und verschönern deinen Zoo."
+  "tip.plant": "Klicke, damit dein Zoowärter für 2 Münzen Blumen auf dieses freie Feld pflanzt. Nach der Arbeit erscheinen Blumen und verschönern deinen Zoo.",
+  "ui.cancelTask": "Aktuelle Arbeit stoppen",
+  "tip.cancelTask": "Stoppe die aktuelle Arbeit deines Zoowärters und wähle eine neue. Nicht geliefertes Futter und reservierte Pflanzmünzen bekommst du zurück.",
+  "message.cancelled": "Bereit für eine neue Aufgabe. Unverbrauchtes Futter und Pflanzmünzen sind zurück."
 }

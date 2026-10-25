@@ -214,3 +214,24 @@ coverage gates, production build and Docker smoke. Coverage is 99.59% statements
 98.05% branches, 99.13% functions and 99.75% lines. The final remote workflow and
 public version are checked after pushing; earlier failed attempts are not treated
 as successful releases.
+
+## Interactive review and job recovery (0.4.6)
+
+- [x] Start the local game at port 5173 and open it in the default browser.
+- [x] Review recovery when building changes a queued walking/care route.
+- [x] Release statically impossible jobs and return undelivered supplies.
+- [x] Provide a localized Stop current job action with exact-once refunds.
+- [x] Validate temporary guest blockage still waits and can resume.
+- [x] Add real-browser recovery/stop coverage, run review and complete pipeline.
+- [x] Prepare the verified versioned patch for commit and publication.
+
+Keep the local game running for the players after verification.
+
+Verification: 168 unit/integration tests and 16 real Chromium/Firefox scenarios
+passed. Coverage is 99.60% statements, 98.07% branches, 99.13% functions and 99.75%
+lines. Production build and real Docker smoke checks passed. The new browser flow
+builds on a queued destination, verifies automatic recovery, starts/stops feeding,
+checks exact supplies and reloads the save. Review found no remaining blockers in
+the changed job paths; About metadata remains accurate. After pushing, verify the
+actual Actions, Pages and GHCR results and smoke-test the published version before
+reporting the release complete. Keep port 5173 running for the players.

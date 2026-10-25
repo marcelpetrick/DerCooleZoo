@@ -303,7 +303,7 @@
   "ui.help": "How to play",
   "help.intro": "Little steps make a lovely zoo. You can always come back here!",
   "help.care.title": "Care for your friend",
-  "help.care.body": "Click an animal, then Feed, Bring water, Pet or Clean. Your keeper walks there first. Buy food in Food; buying alone does not feed anyone. Free emergency food helps when coins are low. Click a feeder → Refill feeder: your keeper carries one portion there and hungry animals eat it themselves. Click a water trough → Fill water trough so animals can drink.",
+  "help.care.body": "Click an animal, then Feed, Bring water, Pet or Clean. Your keeper walks there first. Buy food in Food; buying alone does not feed anyone. Free emergency food helps when coins are low. Click a feeder → Refill feeder: your keeper carries one portion there and hungry animals eat it themselves. Click a water trough → Fill water trough so animals can drink. Use Stop current job to choose another task; unused food and reserved planting coins are returned.",
   "help.paths.title": "Show guests the way",
   "help.paths.body": "Build → Paths, choose a path, then click clear tiles. Join every path to the entrance. Guests walk on paths. Put benches, play areas and booths beside them. Open the zoo to welcome visitors!",
   "help.booths.title": "Let the popcorn pop",
@@ -410,5 +410,8 @@
   "tip.repairDone": "The starter fence is already repaired. Your keeper can now help with other care tasks.",
   "ui.plant": "Plant flowers",
   "message.plant": "Your keeper is bringing flowers to plant.",
-  "tip.plant": "Click to send your keeper to plant flowers on this clear tile for 2 coins. Flowers appear when planting finishes and make your zoo more attractive."
+  "tip.plant": "Click to send your keeper to plant flowers on this clear tile for 2 coins. Flowers appear when planting finishes and make your zoo more attractive.",
+  "ui.cancelTask": "Stop current job",
+  "tip.cancelTask": "Stop your keeper’s current job so you can choose another. Undelivered food and reserved planting coins are returned.",
+  "message.cancelled": "Ready for a new job. Unused food and planting coins were returned."
 }

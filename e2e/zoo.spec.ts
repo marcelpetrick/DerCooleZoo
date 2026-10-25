@@ -355,3 +355,53 @@ test("grow the zoo by fencing a new enclosure, adding a gate and adopting a seco
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test("building changes cannot trap the keeper and stopping a job returns food", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await page.goto("/");
+  await page.locator('[data-action="start"]').click();
+  await page.locator('[data-action="settings"]').click();
+  await page.locator('[data-action="export"]').click();
+  const setup = JSON.parse(
+    await page.getByRole("textbox", { name: "Save data" }).inputValue(),
+  );
+  setup.coins = 100;
+  setup.paused = true;
+  setup.tiles[6 * setup.size + 2].object = "";
+  await page
+    .getByRole("textbox", { name: "Save data" })
+    .fill(JSON.stringify(setup));
+  await page.locator('[data-action="import"]').click();
+  await page.locator('[data-action="tab:inspect"]').click();
+  await clickWorldTile(page, 2, 6);
+  await expect(page.locator("#keeper-status")).toContainText(/way/i);
+  await page.locator('[data-action="tab:build"]').click();
+  await page.locator('[data-action="category:objects"]').click();
+  await page.locator('[data-action="tool:build:bench"]').click();
+  await clickWorldTile(page, 2, 6);
+  await page.locator('[data-action="tab:inspect"]').click();
+  await page.locator('[data-action="pause"]').click();
+  await expect(page.locator("#keeper-status")).toContainText("Ready", {
+    timeout: 12000,
+  });
+  await page.locator('[data-action="pause"]').click();
+  await page.locator('[data-action="findAnimal"]').first().click();
+  await page.locator('[data-action="care:feed"]').click();
+  await expect(page.locator('[data-action="cancelTask"]')).toBeVisible();
+  await page.locator('[data-action="cancelTask"]').click();
+  await expect(page.locator("#keeper-status")).toContainText("Ready");
+  await page.locator('[data-action="settings"]').click();
+  await page.locator('[data-action="save"]').click();
+  const stopped = await page.evaluate(() =>
+    JSON.parse(localStorage.getItem("dercoolezoo.save.v1")!),
+  );
+  expect(stopped.keeper.task).toBeNull();
+  expect(stopped.inventory.greens).toBe(setup.inventory.greens);
+  expect(stopped.tiles[6 * stopped.size + 2].object).toBe("bench");
+  await page.reload();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

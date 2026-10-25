@@ -193,3 +193,17 @@ after the keeper has walked onto the chosen plot, with a step aside before work.
 Its local gate passed 163 unit/integration tests, 14 real Firefox/Chromium
 scenarios, all coverage thresholds, production build and Docker smoke. Final
 publication is verified against the resulting commit before completion is reported.
+
+## Interactive review (0.4.6)
+
+The game was started on port 5173 and opened in the default browser. Reviewing
+construction during queued movement exposed a permanent keeper busy state.
+Impossible routes now release their jobs and return undelivered food or planting
+reservations; temporary guest queues wait rather than losing their jobs. A visible,
+localized Stop current job control provides immediate manual recovery with
+exact-once refunds.
+
+The complete local gate passed 168 unit/integration tests, 16 real Firefox/Chromium
+flows, 99.60% statements / 98.07% branches / 99.13% functions / 99.75% lines,
+production build and Docker smoke verification. The added browser case verifies
+construction, recovery, new care work, explicit stop, supplies and save/reopen.

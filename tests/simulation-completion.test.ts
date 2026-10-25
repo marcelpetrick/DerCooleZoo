@@ -18,6 +18,8 @@ import {
   animalRoutine,
   buyFood,
   command,
+  cancelTask,
+  build,
   createGame,
   figures,
   friendlyEvents,
@@ -891,4 +893,80 @@ test("the keeper can plant after already walking onto the chosen plot", () => {
   expect(tile(g, plot).object).toBe("flowers");
   expect(g.counters.plant).toBe(1);
   expect(g.coins).toBe(8);
+});
+
+describe("keeper jobs recover from building changes and explicit stops", () => {
+  test("a bench built on a queued walking destination releases the keeper", () => {
+    const g = createGame(),
+      p = { x: 2, z: 6 };
+    tile(g, p).object = "";
+    g.coins = 10;
+    expect(command(g, "walk", p)).toBe(true);
+    expect(build(g, "bench", p)).toBe(true);
+    advance(g, 10);
+    expect(g.keeper.task).toBeNull();
+    expect(g.counters.walk).toBeUndefined();
+    expect(tile(g, p).object).toBe("bench");
+    expect(command(g, "feed", g.animals[0], g.animals[0].id)).toBe(true);
+  });
+  test("stopping food delivery or planting refunds each reservation exactly once", () => {
+    const g = createGame(),
+      a = g.animals[0],
+      p = { x: 2, z: 6 };
+    const food = g.inventory.greens;
+    expect(command(g, "feed", a, a.id)).toBe(true);
+    expect(g.inventory.greens).toBe(food - 1);
+    expect(cancelTask(g)).toBe(true);
+    expect(g.inventory.greens).toBe(food);
+    expect(cancelTask(g)).toBe(false);
+    expect(g.inventory.greens).toBe(food);
+    tile(g, p).object = "";
+    g.coins = 10;
+    expect(command(g, "plant", p)).toBe(true);
+    expect(g.coins).toBe(8);
+    expect(cancelTask(g)).toBe(true);
+    expect(cancelTask(g)).toBe(false);
+    advance(g, 5);
+    expect(g.coins).toBe(10);
+    expect(tile(g, p).object).toBe("");
+    expect(g.counters.feed).toBeUndefined();
+    expect(g.counters.plant).toBeUndefined();
+  });
+  test("an impossible changed route returns carried food and frees the keeper", () => {
+    const g = createGame(),
+      a = g.animals[0];
+    const inventory = g.inventory.greens;
+    expect(command(g, "feed", a, a.id)).toBe(true);
+    for (const n of [
+      { x: 0, z: 5 },
+      { x: 2, z: 5 },
+      { x: 1, z: 4 },
+      { x: 1, z: 6 },
+    ])
+      g.fences[edgeKey(g.keeper, n)] = "fence";
+    advance(g, 2);
+    expect(g.keeper.task).toBeNull();
+    expect(g.inventory.greens).toBe(inventory);
+    expect(g.counters.feed).toBeUndefined();
+    expect(g.message).toBe("noRoute");
+  });
+  test("temporary guest blockage waits instead of canceling a viable job", () => {
+    const g = createGame();
+    for (const cell of g.tiles) cell.object = "rock";
+    for (const p of [
+      { x: 1, z: 5 },
+      { x: 2, z: 5 },
+      { x: 3, z: 5 },
+    ])
+      tile(g, p).object = "path";
+    expect(command(g, "walk", { x: 3, z: 5 })).toBe(true);
+    guest(g, 2, 5);
+    advance(g, 1);
+    expect(g.keeper.task?.kind).toBe("walk");
+    g.visitors = [];
+    advance(g, 4);
+    expect(g.keeper.task).toBeNull();
+    expect(g.keeper).toMatchObject({ x: 3, z: 5 });
+    expect(g.counters.walk).toBe(1);
+  });
 });

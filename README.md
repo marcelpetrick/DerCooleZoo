@@ -49,6 +49,10 @@ pace, and donations and goal rewards support steady growth rather than a flood o
 coins. Keepers stop beside animals to care for them, and moving figures wait or
 find a clear route instead of sharing a tile.
 
+If the keeper is busy, **Stop current job** frees them and returns undelivered
+food or reserved planting coins. If a building or fence makes a route impossible,
+the job stops safely; temporary visitor queues still wait and resume.
+
 Select an empty tile and choose **Plant flowers · 2** to send your keeper to
 plant there. Coins are refunded if that plot becomes occupied before the work
 finishes. Carers skip unreachable animals and reserve each delivery once.

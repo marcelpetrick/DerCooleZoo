@@ -20,6 +20,7 @@ import {
   build,
   buyFood,
   command,
+  cancelTask,
   canRepair,
   canPlant,
   repairPoint,
@@ -283,6 +284,12 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
     if (tab === "inspect") {
       const a = selectedAnimal();
       panel.innerHTML = title("ui.keeper", "🧑‍🌾", tr("ui.welcome"));
+      if (game.keeper.task)
+        panel.innerHTML += actionButton(
+          "cancelTask",
+          `✋ ${tr("ui.cancelTask")}`,
+          'class="wide"',
+        );
       if (!a)
         panel.innerHTML += `<div class="keeper-card"><span>🧑‍🌾</span><div><strong>${tr("ui.keeper")}</strong><small>${tr(game.keeper.task ? "ui.working" : "ui.ready")}</small></div></div>`;
       if (a) {
@@ -674,7 +681,8 @@ export function mount(root: HTMLElement, options: AppOptions = {}) {
         dirty ?? animal ?? selected,
         dirty ? 0 : (animal?.id ?? 0),
       );
-    } else if (kind === "food") buyFood(game, id as Food);
+    } else if (kind === "cancelTask") cancelTask(game);
+    else if (kind === "food") buyFood(game, id as Food);
     else if (kind === "hire") hire(game, id as Role);
     else if (kind === "starter") {
       starter = id;

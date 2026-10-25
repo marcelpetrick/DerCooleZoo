@@ -1115,3 +1115,33 @@ test("slow rendering preserves real care time, speed and pause while bounding ba
   frame(-500);
   expect(app.game.time).toBe(8.75);
 });
+
+test("stopping a keeper job returns supplies and makes the next action available", () => {
+  const { app, root, click } = setup();
+  const supply = app.game.inventory.greens;
+  click("findAnimal");
+  click("care:feed");
+  expect(app.game.inventory.greens).toBe(supply - 1);
+  expect(
+    root.querySelector('[data-action="cancelTask"]')!.getAttribute("title"),
+  ).toContain("returned");
+  click("cancelTask");
+  expect(app.game.inventory.greens).toBe(supply);
+  expect(app.game.keeper.task).toBeNull();
+  expect(root.querySelector("#keeper-status")!.textContent).toContain("Ready");
+  expect(root.querySelector('[data-action="cancelTask"]')).toBeNull();
+  const plot = { x: 2, z: 6 };
+  tile(app.game, plot).object = "";
+  app.game.coins = 10;
+  app.select(plot);
+  click("care:plant");
+  expect(app.game.coins).toBe(8);
+  app.action("language:de");
+  expect(
+    root.querySelector('[data-action="cancelTask"]')!.textContent,
+  ).toContain("Arbeit stoppen");
+  click("cancelTask");
+  expect(app.game.coins).toBe(10);
+  expect(app.game.keeper.task).toBeNull();
+  expect(tile(app.game, plot).object).toBe("");
+});
